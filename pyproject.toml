@@ -1,0 +1,17 @@
+[project]
+name = "vault-rag"
+version = "0.1.0"
+description = "Hybrid retrieval and answer generation for Markdown vault notes"
+requires-python = ">=3.12"
+dependencies = [
+  "chromadb==1.0.21",
+  "httpx==0.28.1",
+  "nltk==3.9.1",
+  "pandas==2.3.1",
+  "pandas-stubs",
+  "pyright",
+  "PyYAML==6.0.2",
+  "rank-bm25",
+  "rich",
+  "streamlit",
+]

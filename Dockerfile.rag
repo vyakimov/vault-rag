@@ -1,0 +1,22 @@
+FROM python:3.12-slim
+
+SHELL ["/bin/bash", "-c"]
+WORKDIR /app
+
+COPY pyproject.toml /app/pyproject.toml
+
+RUN pip install --no-cache-dir uv && \
+    uv venv /app/.venv && \
+    /app/.venv/bin/pip install --no-cache-dir \
+      chromadb==1.0.21 \
+      httpx==0.28.1 \
+      nltk==3.9.1 \
+      pandas==2.3.1 \
+      PyYAML==6.0.2 \
+      rank-bm25 \
+      rich \
+      streamlit
+
+ENV PATH="/app/.venv/bin:${PATH}"
+
+COPY . /app

@@ -1,0 +1,75 @@
+{
+  "name": "Vault RAG",
+  "version": "1.0.0",
+  "description": "Hybrid retrieval and answer generation for Markdown notes stored in an Obsidian-style vault.",
+  "system_prompt": "This workspace contains Vault RAG. It ingests Markdown notes from input/Vault 14, stores OpenRouter-generated embeddings in ChromaDB, combines semantic retrieval with BM25 keyword search, optionally reranks results through OpenRouter, and exposes both CLI and Streamlit interfaces.",
+  "vars": {
+    "scripts": "scripts",
+    "db": "chroma_db",
+    "input": "input/Vault 14"
+  },
+  "groups": [
+    {
+      "name": "Core",
+      "system_prompt": "Core retrieval pipeline for Vault RAG.\n\n${group_files}",
+      "data": [
+        "build-database-cli",
+        "database-builder",
+        "vault-ingestion",
+        "openrouter-client",
+        "searcher",
+        "ask-question-cli",
+        "streamlit-ui",
+        "config",
+        "utils"
+      ]
+    }
+  ],
+  "data": {
+    "build-database-cli": {
+      "type": "file",
+      "path": "${scripts}/build_database.py",
+      "description": "CLI entrypoint for indexing Markdown notes from the vault into ChromaDB."
+    },
+    "database-builder": {
+      "type": "file",
+      "path": "${scripts}/database_builder.py",
+      "description": "Collection management and BM25 rebuild logic for the indexed notes."
+    },
+    "vault-ingestion": {
+      "type": "file",
+      "path": "${scripts}/vault_ingestion.py",
+      "description": "Markdown note loader with frontmatter parsing and date inference."
+    },
+    "openrouter-client": {
+      "type": "file",
+      "path": "${scripts}/openrouter_client.py",
+      "description": "OpenRouter-backed embedding, reranking, and chat client."
+    },
+    "searcher": {
+      "type": "file",
+      "path": "${scripts}/searcher.py",
+      "description": "Hybrid search, score fusion, reranking, and recency logic."
+    },
+    "ask-question-cli": {
+      "type": "file",
+      "path": "${scripts}/ask_question.py",
+      "description": "CLI query interface for the indexed vault."
+    },
+    "streamlit-ui": {
+      "type": "file",
+      "path": "${scripts}/streamlit_app.py",
+      "description": "Multi-page Streamlit app for search, notes, and answers."
+    },
+    "config": {
+      "type": "file",
+      "path": "${scripts}/config.py",
+      "description": "Centralized BM25 and search settings."
+    },
+    "utils": {
+      "type": "file",
+      "path": "${scripts}/utils.py",
+      "description": "Hashing, tokenization, stopword, and pretty-print helpers."
+    }
+  }
+}
