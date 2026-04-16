@@ -50,6 +50,7 @@ st.markdown(
     .score-badge.semantic { background-color: #f3e5f5; border-color: #ce93d8; }
     .score-badge.fused { background-color: #fff3e0; border-color: #ffcc80; }
     .score-badge.reranked { background-color: #fff4e6; border-color: #ffd699; }
+    .score-badge.judge { background-color: #fce4ec; border-color: #f48fb1; }
     .score-badge.recency { background-color: #e0f2f1; border-color: #80cbc4; }
     </style>
     """,
@@ -61,7 +62,14 @@ def create_bm25_index(builder, k1: float, b: float):
     return BM25Okapi(builder.tokenized_documents, k1=k1, b=b)
 
 
-def display_result(index: int, document: str, metadata: Dict[str, str], scores: Dict[str, float]):
+def display_result(
+    index: int,
+    document: str,
+    metadata: Dict[str, str],
+    scores: Dict[str, float],
+    judge_raw: int | None = None,
+    judge_reasoning: str = "",
+):
     title = metadata.get("title", "(untitled)")
     path = metadata.get("path", "")
     date = metadata.get("date", "")
@@ -79,18 +87,28 @@ def display_result(index: int, document: str, metadata: Dict[str, str], scores: 
             ("semantic", "Semantic", "semantic"),
             ("fused", "Fused", "fused"),
             ("reranked", "Reranked", "reranked"),
+            ("judge", "Judge", "judge"),
             ("recency", "Recency", "recency"),
         ]:
             if key in scores:
-                chips.append(
-                    f"<span class='score-badge {css_class}'>{label}: {scores[key]:.2f}</span>"
-                )
+                value = scores[key]
+                if key == "judge" and judge_raw is not None:
+                    chips.append(
+                        f"<span class='score-badge {css_class}'>{label}: {value:.2f} ({judge_raw}/5)</span>"
+                    )
+                else:
+                    chips.append(
+                        f"<span class='score-badge {css_class}'>{label}: {value:.2f}</span>"
+                    )
         chips.append(
             f"<span class='score-badge primary'>Final: {final_score:.2f}</span>"
         )
         st.markdown(
             f"<div class='scores-row'>{''.join(chips)}</div>", unsafe_allow_html=True
         )
+
+        if judge_reasoning:
+            st.caption(f"Judge: {judge_reasoning}")
 
         st.markdown(document)
         relevant = st.checkbox(
@@ -221,6 +239,9 @@ def main():
         if st.button("🤖 Answer With OpenRouter", type="primary", use_container_width=True):
             st.switch_page("./streamlit_llm.py")
 
+    judge_scores_list = results.get("judge_scores") or []
+    judge_raw_list = results.get("judge_raw_scores") or []
+    judge_reasonings_list = results.get("judge_reasonings") or []
     for index, document in enumerate(results["documents"]):
         scores: Dict[str, float] = {
             "combined": results["boosted_scores"][index],
@@ -232,7 +253,24 @@ def main():
             scores["reranked"] = results["reranked_scores"][index]
         if index < len(results.get("recency_boost_factor", [])):
             scores["recency"] = results["recency_boost_factor"][index]
-        display_result(index, document, results["metadatas"][index], scores)
+        judge_raw = None
+        judge_reasoning = ""
+        if index < len(judge_scores_list):
+            judge_score = judge_scores_list[index]
+            if judge_score is not None and judge_score == judge_score:  # not NaN
+                scores["judge"] = float(judge_score)
+                if index < len(judge_raw_list):
+                    judge_raw = judge_raw_list[index]
+                if index < len(judge_reasonings_list):
+                    judge_reasoning = judge_reasonings_list[index] or ""
+        display_result(
+            index,
+            document,
+            results["metadatas"][index],
+            scores,
+            judge_raw=judge_raw,
+            judge_reasoning=judge_reasoning,
+        )
 
     st.divider()
     export_content = json.dumps(results, indent=2)

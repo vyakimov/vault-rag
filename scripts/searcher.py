@@ -22,7 +22,7 @@ except ImportError:
 TESTING = False
 
 
-class DebugInfo(TypedDict):
+class DebugInfo(TypedDict, total=False):
     query: str
     combine_strategy: str
     semantic_weight: float
@@ -32,6 +32,10 @@ class DebugInfo(TypedDict):
     rrf_k: Optional[int]
     zsigmoid_temperature: Optional[float]
     rerank_enabled: bool
+    rerank_use_ranks: bool
+    judge_enabled: bool
+    judge_top_k: int
+    judge_model: Optional[str]
 
 
 class HybridSearchResult(TypedDict, total=False):
@@ -43,6 +47,10 @@ class HybridSearchResult(TypedDict, total=False):
     keyword_scores: List[float]
     fused_scores: List[float]
     reranked_scores: List[float]
+    reranked_raw_scores: List[float]
+    judge_scores: List[float]
+    judge_raw_scores: List[Optional[int]]
+    judge_reasonings: List[str]
     boosted_scores: List[float]
     recency_boost_factor: List[float]
     debug_info: DebugInfo
@@ -356,8 +364,74 @@ class Searcher:
         else:
             reranked = pd.DataFrame({"score": rerank_input["fused_score"]}, index=rerank_input.index)
 
-        fused = fused.join(reranked["score"].rename("reranked_score"), how="left")
-        fused["reranked_score"] = fused["reranked_score"].fillna(fused["fused_score"])
+        # Preserve the raw rerank score for debugging/inspection.
+        fused = fused.join(reranked["score"].rename("reranked_raw_score"), how="left")
+        fused["reranked_raw_score"] = fused["reranked_raw_score"].fillna(fused["fused_score"])
+
+        # (c) Treat Cohere rerank output as ranks rather than calibrated scores.
+        # Cohere's `relevance_score` is a cross-encoder output squashed to [0, 1]
+        # but it is not a probability and is not comparable across queries --
+        # using the raw magnitude in a weighted combination with recency causes
+        # uncalibrated score gaps to get amplified. Converting to a rank-based
+        # score in [0.5, 1.0] preserves the ordering the reranker is good at
+        # while discarding the magnitude we don't trust.
+        use_ranks = bool(SEARCH_CONFIG.get("rerank_use_ranks", True))
+        if use_ranks and rerank_enabled and len(reranked) > 0:
+            ordered_ids = list(reranked.sort_values("score", ascending=False).index)
+            denom = max(len(ordered_ids) - 1, 1)
+            rank_scores = pd.Series(
+                {
+                    doc_id: 1.0 - (position / denom) * 0.5
+                    for position, doc_id in enumerate(ordered_ids)
+                },
+                name="reranked_score",
+                dtype=float,
+            )
+            fused["reranked_score"] = rank_scores.reindex(fused.index)
+            # Docs outside the rerank pool keep their fused_score (already in
+            # [0, 1]); since reranked docs get >= 0.5, ordering is preserved
+            # for any reasonable n_results <= rerank_top_k.
+            fused["reranked_score"] = fused["reranked_score"].fillna(fused["fused_score"])
+        else:
+            fused["reranked_score"] = fused["reranked_raw_score"]
+
+        # (b) LLM judge: for the top `judge_top_k` docs after rerank, ask a
+        # small LLM "does this document actually answer the query?" on a 1-5
+        # scale. This is better calibrated to our notion of relevance than
+        # the cross-encoder score and filters out topically-overlapping-but-
+        # unhelpful notes that Cohere can score highly.
+        judge_enabled = (
+            bool(SEARCH_CONFIG.get("judge_enabled", True))
+            and bool(self.provider.judge_model)
+        )
+        judge_top_k_val = min(len(fused), int(SEARCH_CONFIG.get("judge_top_k", 10)))
+        fused["judge_raw"] = pd.NA
+        fused["judge_score"] = float("nan")
+        fused["judge_reasoning"] = ""
+        if judge_enabled and judge_top_k_val > 0:
+            post_rerank_order = fused.sort_values("reranked_score", ascending=False)
+            judge_candidates = list(post_rerank_order.head(judge_top_k_val).index)
+            try:
+                judge_df = self.provider.judge_relevance(
+                    query=query,
+                    documents=[self.document_by_id[doc_id] for doc_id in judge_candidates],
+                    ids=judge_candidates,
+                )
+                for column in ("judge_raw", "judge_score", "judge_reasoning"):
+                    if column in judge_df.columns:
+                        fused.loc[judge_df.index, column] = judge_df[column]
+            except OpenRouterError:
+                judge_enabled = False
+
+        # Downstream ranking uses the judge score when we have it, falling back
+        # to the (rank-transformed) rerank score for anything not judged.
+        fused["relevance_score"] = fused["judge_score"].fillna(fused["reranked_score"])
+
+        if judge_enabled and bool(SEARCH_CONFIG.get("judge_filter_irrelevant", False)):
+            # judge_raw == 1 means "not relevant at all". Keep everything else,
+            # including unjudged docs (judge_raw is NA).
+            keep = fused["judge_raw"].isna() | (fused["judge_raw"].astype("Int64") > 1)
+            fused = fused[keep]
 
         if use_recency:
             recency_boost_factor = self.calculate_recency_scores(list(fused.index), decay_days).reindex(
@@ -365,14 +439,19 @@ class Searcher:
             ).fillna(1.0)
             fused["recency_boost_factor"] = recency_boost_factor
             fused["boosted_score"] = (
-                fused["reranked_score"] * (1.0 - recency_wt)
-                + fused["reranked_score"] * fused["recency_boost_factor"] * recency_wt
+                fused["relevance_score"] * (1.0 - recency_wt)
+                + fused["relevance_score"] * fused["recency_boost_factor"] * recency_wt
             )
         else:
             fused["recency_boost_factor"] = 1.0
-            fused["boosted_score"] = fused["reranked_score"]
+            fused["boosted_score"] = fused["relevance_score"]
 
         top_results = fused.sort_values("boosted_score", ascending=False).head(n_results)
+
+        judge_raw_values = [
+            None if pd.isna(value) else int(value)
+            for value in top_results["judge_raw"].tolist()
+        ]
 
         result: HybridSearchResult = {
             "ids": list(top_results.index),
@@ -383,6 +462,10 @@ class Searcher:
             "keyword_scores": raw_scores.reindex(top_results.index)["keyword_scores"].tolist(),
             "fused_scores": top_results["fused_score"].tolist(),
             "reranked_scores": top_results["reranked_score"].tolist(),
+            "reranked_raw_scores": top_results["reranked_raw_score"].tolist(),
+            "judge_scores": top_results["judge_score"].tolist(),
+            "judge_raw_scores": judge_raw_values,
+            "judge_reasonings": top_results["judge_reasoning"].tolist(),
             "boosted_scores": top_results["boosted_score"].tolist(),
             "recency_boost_factor": top_results["recency_boost_factor"].tolist(),
             "debug_info": {
@@ -395,6 +478,10 @@ class Searcher:
                 "rrf_k": rrf_k_val if strategy == "rrf" else None,
                 "zsigmoid_temperature": zsig_temp if strategy == "zsigmoid" else None,
                 "rerank_enabled": rerank_enabled,
+                "rerank_use_ranks": bool(use_ranks and rerank_enabled),
+                "judge_enabled": judge_enabled,
+                "judge_top_k": judge_top_k_val if judge_enabled else 0,
+                "judge_model": self.provider.judge_model if judge_enabled else None,
             },
         }
         result[f"{strategy}_semantic_scores"] = top_results["semantic_score"].tolist()
