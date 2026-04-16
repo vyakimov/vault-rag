@@ -54,7 +54,7 @@ class OpenRouterClient:
             ),
             chat_model=os.environ.get("OPENROUTER_CHAT_MODEL", "openai/gpt-4o-mini"),
             rerank_model=os.environ.get("OPENROUTER_RERANK_MODEL") or None,
-            judge_model=os.environ.get("OPENROUTER_JUDGE_MODEL", "openai/gpt-5.4-mini") or None,
+            judge_model=os.environ.get("OPENROUTER_JUDGE_MODEL", "minimax/minimax-m2.7") or None,
             base_url=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
             http_referer=os.environ.get("OPENROUTER_HTTP_REFERER"),
             app_title=os.environ.get("OPENROUTER_APP_TITLE", "Vault RAG"),

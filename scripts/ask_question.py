@@ -55,6 +55,18 @@ def ask_question(question: str, output_file: str | None = None):
             output_lines.append(
                 f"Reranked Score: {_at(results['reranked_scores'], index):.4f}"
             )
+        judge_scores = results.get("judge_scores") or []
+        if index < len(judge_scores):
+            judge_score = judge_scores[index]
+            judge_raw = (results.get("judge_raw_scores") or [None] * len(judge_scores))[index]
+            judge_reasoning = (results.get("judge_reasonings") or [""] * len(judge_scores))[index]
+            if judge_score is not None and judge_score == judge_score:  # not NaN
+                raw_display = f" (raw {judge_raw}/5)" if judge_raw is not None else ""
+                output_lines.append(
+                    f"Judge Score: {float(judge_score):.4f}{raw_display}"
+                )
+                if judge_reasoning:
+                    output_lines.append(f"Judge Reasoning: {judge_reasoning}")
         output_lines.append(
             f"Semantic Score: {_at(results['semantic_scores'], index):.4f}"
         )
