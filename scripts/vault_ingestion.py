@@ -17,6 +17,16 @@ except ImportError:
 
 DATE_FILENAME_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\.md$")
 
+IGNORE_TAGS = ("ignore", "secret")
+IGNORE_TAG_RE = re.compile(
+    r"(?<!\S)#(?:" + "|".join(IGNORE_TAGS) + r")(?![\w/-])",
+    re.IGNORECASE,
+)
+
+
+def has_ignore_tag(body: str) -> bool:
+    return bool(IGNORE_TAG_RE.search(body))
+
 
 def split_frontmatter(raw_text: str) -> Tuple[Dict[str, Any], str]:
     if not raw_text.startswith("---\n"):
@@ -112,9 +122,13 @@ def load_markdown_notes(vault_path: str) -> List[Dict[str, Dict[str, str] | str]
         raise FileNotFoundError(f"Vault path not found: {vault_path}")
 
     note_documents: List[Dict[str, Dict[str, str] | str]] = []
+    skipped = 0
     for path in sorted(root.rglob("*.md")):
         raw_text = path.read_text(encoding="utf-8", errors="ignore")
         frontmatter, body = split_frontmatter(raw_text)
+        if has_ignore_tag(body):
+            skipped += 1
+            continue
         relative_path = path.relative_to(root).as_posix()
         title = str(frontmatter.get("title") or path.stem)
         tags = normalize_tags(frontmatter.get("tags"))
@@ -134,4 +148,6 @@ def load_markdown_notes(vault_path: str) -> List[Dict[str, Dict[str, str] | str]
                 },
             }
         )
+    if skipped:
+        print(f"Skipped {skipped} note(s) tagged #ignore or #secret.")
     return note_documents

@@ -1,9 +1,6 @@
 **/.secrets
 **/.DS_Store
 CLAUDE.md
-Dockerfile.environment
-Dockerfile.pythonBase
-build_files/
 chroma_db/
 input/
 models/

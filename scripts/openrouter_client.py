@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 import pandas as pd
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class OpenRouterError(RuntimeError):

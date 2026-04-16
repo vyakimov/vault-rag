@@ -1,9 +1,9 @@
 **/.secrets
+.env
+.env.*
+!.env.example
 **/.DS_Store
 CLAUDE.md
-Dockerfile.environment
-Dockerfile.pythonBase
-build_files/
 chroma_db/
 chroma_db_lowmem/
 search_results/
