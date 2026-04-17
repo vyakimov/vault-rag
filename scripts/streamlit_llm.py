@@ -1,23 +1,23 @@
 from __future__ import annotations
 
-import json
-import os
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict
 
 import streamlit as st
 
 try:
+    from scripts.answer import build_context, generate_prompts, parse_llm_json
     from scripts.database_reader import DatabaseReader
     from scripts.streamlit_models import get_openrouter_client
 except ImportError:
+    from answer import build_context, generate_prompts, parse_llm_json
     from database_reader import DatabaseReader
     from streamlit_models import get_openrouter_client
 
 
 client = get_openrouter_client()
 
-st.markdown("# Answer")
+st.markdown("# Synthesize")
 
 
 if "last_results" not in st.session_state:
@@ -39,73 +39,6 @@ def transform_citations_to_links(answer: str, index_dict: Dict[str, str], base_u
         return f"[{', '.join(links)}]"
 
     return re.sub(r"\[([A-Z]\d+(?:,\s*[A-Z]\d+)*)\]", replace_group, answer)
-
-
-def parse_llm_json(response: str) -> Optional[Dict[str, Any]]:
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError:
-        start = response.find("{")
-        end = response.rfind("}") + 1
-        if start != -1 and end > start:
-            try:
-                return json.loads(response[start:end])
-            except json.JSONDecodeError:
-                return None
-        return None
-
-
-def generate_prompts(query: str, context: str) -> Tuple[str, str]:
-    system_prompt = """You are a retrieval-grounded assistant.
-Use only the note excerpts provided in <CONTEXT>.
-Every factual claim must cite one or more note ids like [S0] or [S0, S1].
-If the notes do not contain enough information, say that clearly.
-Return JSON with this exact shape:
-{
-  "answer": "<text>",
-  "citations": ["S0"],
-  "confidence": "High|Medium|Low"
-}
-"""
-    user_prompt = f"""<QUERY>
-{query}
-</QUERY>
-<CONTEXT>
-{context}
-</CONTEXT>
-Answer using only the context above."""
-    return system_prompt, user_prompt
-
-
-def build_context(results, hard_cutoff: int = 8) -> Tuple[str, Dict[str, str]]:
-    context_parts = []
-    index_dict = {}
-    for index, (doc_id, document, metadata, relevant) in enumerate(
-        zip(
-            results["ids"],
-            results["documents"],
-            results["metadatas"],
-            results["relevant"],
-        )
-    ):
-        if not relevant:
-            continue
-        citation_key = f"S{len(index_dict)}"
-        context_parts.append(
-            "\n".join(
-                [
-                    f"<{citation_key} score={results['boosted_scores'][index]:.4f}>",
-                    f"Title: {metadata.get('title', '(untitled)')}",
-                    f"Path: {metadata.get('path', '')}",
-                    document,
-                    f"</{citation_key}>",
-                ]
-            )
-        )
-        index_dict[citation_key] = doc_id
-        if len(index_dict) >= hard_cutoff:
-            break
-    return "\n\n".join(context_parts), index_dict
 
 
 @st.dialog("Note Details", width="large")
@@ -153,7 +86,7 @@ def write_response(response: str, index_dict: Dict[str, str]):
 
 
 if st.session_state["last_results"] is None:
-    st.write("Run a search first.")
+    st.write("Run a retrieval first.")
 else:
     results = st.session_state["last_results"]
     query = results["debug_info"]["query"]
@@ -168,12 +101,14 @@ else:
             st.session_state["llm_response"] = None
             st.rerun()
 
-    st.caption(f"Using {len(index_dict)} notes as answer context.")
+    st.caption(f"Using {len(index_dict)} notes for synthesis.")
 
     if st.session_state["llm_response"] is None:
         system_prompt, user_prompt = generate_prompts(query, context)
-        with st.spinner("Generating answer..."):
-            st.session_state["llm_response"] = client.chat(system_prompt, user_prompt)
+        with st.spinner("Synthesizing..."):
+            st.session_state["llm_response"] = client.chat(
+                system_prompt, user_prompt, max_tokens=4096
+            )
 
     with st.chat_message("assistant"):
         write_response(st.session_state["llm_response"], index_dict)

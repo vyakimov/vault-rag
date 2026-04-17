@@ -1,8 +1,8 @@
 import streamlit as st
 
-search_page = st.Page("streamlit_search.py", title="Search", icon="🔍")
-answer_page = st.Page("streamlit_llm.py", title="Answer", icon="🤖")
+retrieve_page = st.Page("streamlit_search.py", title="Retrieve", icon="🔍")
+synthesize_page = st.Page("streamlit_llm.py", title="Synthesize", icon="🤖")
 notes_page = st.Page("streamlit_db.py", title="Notes", icon="🗂️")
 
-navigation = st.navigation([search_page, answer_page, notes_page])
+navigation = st.navigation([retrieve_page, synthesize_page, notes_page])
 navigation.run()

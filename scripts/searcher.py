@@ -35,6 +35,7 @@ class DebugInfo(TypedDict, total=False):
     rerank_use_ranks: bool
     judge_enabled: bool
     judge_top_k: int
+    judge_votes: int
     judge_model: Optional[str]
 
 
@@ -49,7 +50,9 @@ class HybridSearchResult(TypedDict, total=False):
     reranked_scores: List[float]
     reranked_raw_scores: List[float]
     judge_scores: List[float]
-    judge_raw_scores: List[Optional[int]]
+    judge_raw_scores: List[Optional[float]]
+    judge_votes: List[Optional[List[int]]]
+    judge_grades: List[Optional[str]]
     judge_reasonings: List[str]
     boosted_scores: List[float]
     recency_boost_factor: List[float]
@@ -405,8 +408,11 @@ class Searcher:
             and bool(self.provider.judge_model)
         )
         judge_top_k_val = min(len(fused), int(SEARCH_CONFIG.get("judge_top_k", 10)))
-        fused["judge_raw"] = pd.NA
+        judge_votes_val = max(1, int(SEARCH_CONFIG.get("judge_votes", 6)))
+        fused["judge_raw"] = float("nan")
         fused["judge_score"] = float("nan")
+        fused["judge_grade"] = ""
+        fused["judge_votes"] = [[] for _ in range(len(fused))]
         fused["judge_reasoning"] = ""
         if judge_enabled and judge_top_k_val > 0:
             post_rerank_order = fused.sort_values("reranked_score", ascending=False)
@@ -416,21 +422,33 @@ class Searcher:
                     query=query,
                     documents=[self.document_by_id[doc_id] for doc_id in judge_candidates],
                     ids=judge_candidates,
+                    num_votes=judge_votes_val,
                 )
-                for column in ("judge_raw", "judge_score", "judge_reasoning"):
+                for column in ("judge_raw", "judge_score", "judge_grade", "judge_reasoning"):
                     if column in judge_df.columns:
                         fused.loc[judge_df.index, column] = judge_df[column]
+                if "judge_votes" in judge_df.columns:
+                    for doc_id, votes in judge_df["judge_votes"].items():
+                        fused.at[doc_id, "judge_votes"] = list(votes)
             except OpenRouterError:
                 judge_enabled = False
 
-        # Downstream ranking uses the judge score when we have it, falling back
-        # to the (rank-transformed) rerank score for anything not judged.
-        fused["relevance_score"] = fused["judge_score"].fillna(fused["reranked_score"])
+        # When the judge ran, it's the authoritative signal: judged docs should
+        # always rank ahead of unjudged candidates, even when rated 1/5. Pushing
+        # unjudged docs into negative territory preserves their relative order
+        # while guaranteeing any judged doc outranks them.
+        if judge_enabled:
+            unjudged_mask = fused["judge_score"].isna()
+            fused["relevance_score"] = fused["judge_score"]
+            fused.loc[unjudged_mask, "relevance_score"] = (
+                fused.loc[unjudged_mask, "reranked_score"] - 1.0
+            )
+        else:
+            fused["relevance_score"] = fused["reranked_score"]
 
         if judge_enabled and bool(SEARCH_CONFIG.get("judge_filter_irrelevant", False)):
-            # judge_raw == 1 means "not relevant at all". Keep everything else,
-            # including unjudged docs (judge_raw is NA).
-            keep = fused["judge_raw"].isna() | (fused["judge_raw"].astype("Int64") > 1)
+            # judge_raw is the average (1-5); drop docs averaging <= 1 (all "not relevant").
+            keep = fused["judge_raw"].isna() | (fused["judge_raw"] > 1.0)
             fused = fused[keep]
 
         if use_recency:
@@ -449,8 +467,18 @@ class Searcher:
         top_results = fused.sort_values("boosted_score", ascending=False).head(n_results)
 
         judge_raw_values = [
-            None if pd.isna(value) else int(value)
+            None if pd.isna(value) else float(value)
             for value in top_results["judge_raw"].tolist()
+        ]
+        judge_votes_values: List[Optional[List[int]]] = []
+        for value in top_results["judge_votes"].tolist():
+            if isinstance(value, list) and value:
+                judge_votes_values.append([int(v) for v in value])
+            else:
+                judge_votes_values.append(None)
+        judge_grade_values = [
+            (value if isinstance(value, str) and value else None)
+            for value in top_results["judge_grade"].tolist()
         ]
 
         result: HybridSearchResult = {
@@ -465,6 +493,8 @@ class Searcher:
             "reranked_raw_scores": top_results["reranked_raw_score"].tolist(),
             "judge_scores": top_results["judge_score"].tolist(),
             "judge_raw_scores": judge_raw_values,
+            "judge_votes": judge_votes_values,
+            "judge_grades": judge_grade_values,
             "judge_reasonings": top_results["judge_reasoning"].tolist(),
             "boosted_scores": top_results["boosted_score"].tolist(),
             "recency_boost_factor": top_results["recency_boost_factor"].tolist(),
@@ -481,6 +511,7 @@ class Searcher:
                 "rerank_use_ranks": bool(use_ranks and rerank_enabled),
                 "judge_enabled": judge_enabled,
                 "judge_top_k": judge_top_k_val if judge_enabled else 0,
+                "judge_votes": judge_votes_val if judge_enabled else 0,
                 "judge_model": self.provider.judge_model if judge_enabled else None,
             },
         }

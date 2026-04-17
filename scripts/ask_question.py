@@ -3,15 +3,18 @@ import os
 import sys
 
 try:
+    from scripts.answer import synthesize_answer
     from scripts.database_builder import DatabaseBuilder
     from scripts.searcher import Searcher
 except ImportError:
     try:
+        from answer import synthesize_answer
         from database_builder import DatabaseBuilder
         from searcher import Searcher
     except ImportError:
         script_dir = os.path.join(os.getcwd(), "scripts")
         sys.path.insert(0, script_dir)
+        from .answer import synthesize_answer  # pyright: ignore
         from .database_builder import DatabaseBuilder  # pyright: ignore
         from .searcher import Searcher  # pyright: ignore
 
@@ -39,8 +42,10 @@ def ask_question(question: str, output_file: str | None = None):
     def _at(seq, index):
         return float(seq.iloc[index]) if hasattr(seq, "iloc") else float(seq[index])
 
-    output_lines = [f"# Query\n> {question}\n", "# Results"]
-    for index, document in enumerate(results["documents"]):
+    output_lines = [f"# Query\n> {question}\n", "# Results (ascending relevance — most relevant last)"]
+    total = len(results["documents"])
+    for index in range(total - 1, -1, -1):
+        document = results["documents"][index]
         metadata = results.get("metadatas", [{}])[index]
         output_lines.append(f"\n## Note {index + 1}")
         output_lines.append(f"Title: {metadata.get('title', '(untitled)')}")
@@ -58,21 +63,34 @@ def ask_question(question: str, output_file: str | None = None):
         judge_scores = results.get("judge_scores") or []
         if index < len(judge_scores):
             judge_score = judge_scores[index]
-            judge_raw = (results.get("judge_raw_scores") or [None] * len(judge_scores))[index]
-            judge_reasoning = (results.get("judge_reasonings") or [""] * len(judge_scores))[index]
+            judge_grade = (results.get("judge_grades") or [None] * len(judge_scores))[index]
             if judge_score is not None and judge_score == judge_score:  # not NaN
-                raw_display = f" (raw {judge_raw}/5)" if judge_raw is not None else ""
-                output_lines.append(
-                    f"Judge Score: {float(judge_score):.4f}{raw_display}"
-                )
-                if judge_reasoning:
-                    output_lines.append(f"Judge Reasoning: {judge_reasoning}")
+                output_lines.append(f"Judge Grade: {judge_grade or '?'}")
         output_lines.append(
             f"Semantic Score: {_at(results['semantic_scores'], index):.4f}"
         )
         output_lines.append(
             f"Keyword Score: {_at(results['keyword_scores'], index):.4f}"
         )
+
+    output_lines.append("\n# Synthesized Answer")
+    try:
+        parsed, raw, _ = synthesize_answer(builder.provider, results)
+    except Exception as exc:  # noqa: BLE001
+        output_lines.append(f"(synthesis failed: {exc})")
+    else:
+        if parsed:
+            answer_text = parsed.get("answer", "").strip()
+            citations = parsed.get("citations") or []
+            confidence = parsed.get("confidence", "Unknown")
+            if answer_text:
+                output_lines.append(answer_text)
+            output_lines.append(f"\nConfidence: {confidence}")
+            if citations:
+                output_lines.append("Citations: " + ", ".join(citations))
+        else:
+            output_lines.append("(could not parse LLM response — raw output below)")
+            output_lines.append(raw)
 
     output_text = "\n".join(output_lines)
     if output_file:

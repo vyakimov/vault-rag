@@ -67,7 +67,8 @@ def display_result(
     document: str,
     metadata: Dict[str, str],
     scores: Dict[str, float],
-    judge_raw: int | None = None,
+    judge_raw: float | None = None,
+    judge_grade: str | None = None,
     judge_reasoning: str = "",
 ):
     title = metadata.get("title", "(untitled)")
@@ -93,8 +94,10 @@ def display_result(
             if key in scores:
                 value = scores[key]
                 if key == "judge" and judge_raw is not None:
+                    raw_str = f"{float(judge_raw):.2f}".rstrip("0").rstrip(".") or "0"
+                    grade_part = judge_grade or "?"
                     chips.append(
-                        f"<span class='score-badge {css_class}'>{label}: {value:.2f} ({judge_raw}/5)</span>"
+                        f"<span class='score-badge {css_class}'>{label}: {grade_part} ({raw_str}/5)</span>"
                     )
                 else:
                     chips.append(
@@ -112,7 +115,7 @@ def display_result(
 
         st.markdown(document)
         relevant = st.checkbox(
-            "Use this note for answer generation",
+            "Use this note for synthesis",
             key=f"relevant_{index}",
             value=st.session_state.last_results["relevant"][index],
         )
@@ -121,7 +124,7 @@ def display_result(
 
 def main():
     st.title("🗂️ Vault RAG")
-    st.caption("Search Markdown notes from `input/Vault 14` using BM25, embeddings, reranking, and recency.")
+    st.caption("Retrieve Markdown notes from `input/Vault 14` using BM25, embeddings, reranking, and recency.")
 
     builder, searcher, init_error = get_database_and_searcher()
     if init_error:
@@ -152,7 +155,7 @@ def main():
                 st.success("BM25 index updated.")
 
         st.divider()
-        st.subheader("Hybrid Search")
+        st.subheader("Hybrid Retrieval")
         semantic_weight = st.slider(
             "Semantic Weight",
             0.0,
@@ -199,7 +202,7 @@ def main():
     col1, col2 = st.columns([5, 1])
     with col1:
         query = st.text_input(
-            "Search query",
+            "Retrieval query",
             placeholder="Where did I write about OpenClaw VPS migration?",
             key="search_query",
         )
@@ -208,11 +211,11 @@ def main():
             '<p style="margin-bottom: 0.25rem; font-size: 0.875rem;">&nbsp;</p>',
             unsafe_allow_html=True,
         )
-        search_button = st.button("🔍 Search", type="secondary", use_container_width=True)
+        search_button = st.button("🔍 Retrieve", type="secondary", use_container_width=True)
 
     if search_button and query:
         st.session_state.llm_response = None
-        with st.spinner("Searching vault notes..."):
+        with st.spinner("Retrieving vault notes..."):
             results = searcher.hybrid_search(
                 query=query,
                 top_k=int(top_k),
@@ -236,11 +239,12 @@ def main():
         if st.button("🗂️ Browse Notes", type="primary", use_container_width=True):
             st.switch_page("./streamlit_db.py")
     with col2:
-        if st.button("🤖 Answer With OpenRouter", type="primary", use_container_width=True):
+        if st.button("🤖 Synthesize With OpenRouter", type="primary", use_container_width=True):
             st.switch_page("./streamlit_llm.py")
 
     judge_scores_list = results.get("judge_scores") or []
     judge_raw_list = results.get("judge_raw_scores") or []
+    judge_grades_list = results.get("judge_grades") or []
     judge_reasonings_list = results.get("judge_reasonings") or []
     for index, document in enumerate(results["documents"]):
         scores: Dict[str, float] = {
@@ -254,6 +258,7 @@ def main():
         if index < len(results.get("recency_boost_factor", [])):
             scores["recency"] = results["recency_boost_factor"][index]
         judge_raw = None
+        judge_grade = None
         judge_reasoning = ""
         if index < len(judge_scores_list):
             judge_score = judge_scores_list[index]
@@ -261,6 +266,8 @@ def main():
                 scores["judge"] = float(judge_score)
                 if index < len(judge_raw_list):
                     judge_raw = judge_raw_list[index]
+                if index < len(judge_grades_list):
+                    judge_grade = judge_grades_list[index]
                 if index < len(judge_reasonings_list):
                     judge_reasoning = judge_reasonings_list[index] or ""
         display_result(
@@ -269,6 +276,7 @@ def main():
             results["metadatas"][index],
             scores,
             judge_raw=judge_raw,
+            judge_grade=judge_grade,
             judge_reasoning=judge_reasoning,
         )
 

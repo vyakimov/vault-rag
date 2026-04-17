@@ -22,6 +22,7 @@ SEARCH_CONFIG = {
     # in place of the rerank-derived score for downstream ranking.
     "judge_enabled": True,
     "judge_top_k": 10,
+    "judge_votes": 6,
     # If True, docs the judge rates 1/5 (not relevant) are dropped from results.
     "judge_filter_irrelevant": False,
     "recency_boost_enabled": True,
