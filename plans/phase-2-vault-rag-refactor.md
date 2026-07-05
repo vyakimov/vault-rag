@@ -294,6 +294,8 @@ vault-rag synthesize --query "..." [--mode thorough] [--granularity mixed] [--re
 
 ## Tests (pytest; no network — fake provider)
 
+**Existing tests (added 2026-04, before this refactor):** `tests/test_vault_ingestion.py` and `tests/test_utils.py` already cover frontmatter parsing, tag normalization, datetime coercion, date resolution, note loading (against `tests/fixtures/notes/`), and the utils helpers. They import bare module names via `pythonpath = ["scripts"]` in `pyproject.toml`. **Do not delete them — port them:** update imports to the new package paths (`vault_rag.corpus.frontmatter`, `vault_rag.corpus.loader`, `vault_rag.utils`), adapt `load_markdown_notes` calls to the new `load_notes`/`Note` API, and remove the `pythonpath = ["scripts"]` line once nothing imports from `scripts/`. They double as the behavior lock for Step 2. The `tests/fixtures/notes/` corpus (17 small frontmattered notes) can serve as the `tiny_vault` fixture base — extend it rather than generating a parallel one.
+
 `tests/conftest.py`: `FakeProvider` with deterministic `embed_texts` (e.g., hash-seeded unit vectors), `rerank` returning reversed input order with fake scores, `chat` returning a canned JSON string; a `tiny_vault` fixture writing ~6 markdown files to `tmp_path` (with/without frontmatter, with headings, one > 6000 chars, one tagged `#secret`, one with `updated` frontmatter).
 
 Required cases:
