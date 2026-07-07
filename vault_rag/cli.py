@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
+from pathlib import PurePosixPath
 from typing import Any, Dict, Optional
 
 from vault_rag.envelope import failure, print_json, success
@@ -75,6 +77,18 @@ def _schema() -> Dict[str, Any]:
                 },
                 "result": "lint_report",
             },
+            "enrich": {
+                "args": {
+                    "--root": "corpus directory (required)",
+                    "--note": "vault-relative path (xor --stdin)",
+                    "--stdin": "flag: enrich raw text from stdin",
+                    "--intent": "free text",
+                    "--source-type": "transcript|web|pdf|manual",
+                    "--source-url": "url",
+                    "--title": "known title override",
+                },
+                "result": "enrichment_plan",
+            },
         },
         "contracts": {
             "retrieval_output": {
@@ -137,6 +151,21 @@ def _schema() -> Dict[str, Any]:
                     "stale_distilled": "int",
                 },
                 "findings": "object (per-check lists)",
+            },
+            "enrichment_plan": {
+                "input": {"path": "str|null", "given_title": "str|null", "intent": "str|null", "source_type": "str|null"},
+                "title": "str",
+                "title_changed": "bool",
+                "suggested_path": "str",
+                "frontmatter_patch": "object (type/aliases/source_type/source_url only)",
+                "link_insertions": [
+                    {"target": "str", "target_path": "str", "confidence": "float", "mode": "inline", "anchor_text": "str", "occurs_at_line": "int"}
+                ],
+                "related_candidates": [
+                    {"target": "str", "target_path": "str", "confidence": "float", "reason": "str"}
+                ],
+                "warnings": ["str"],
+                "confidence": "high|medium|low",
             },
         },
         "error_types": [
@@ -281,6 +310,67 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
     return success("synthesize", result=synth, meta=meta)
 
 
+def _derive_title(body: str, fallback: str) -> str:
+    for line in body.split("\n"):
+        heading = re.match(r"^#{1,6}\s+(.*)$", line)
+        if heading and heading.group(1).strip():
+            return heading.group(1).strip()
+    for line in body.split("\n"):
+        if line.strip():
+            return line.strip()[:100]
+    return fallback
+
+
+def cmd_enrich(args: argparse.Namespace) -> Dict[str, Any]:
+    if bool(args.note) == bool(args.stdin):
+        return failure(
+            "enrich", "invalid_arguments", "provide exactly one of --note or --stdin"
+        )
+
+    from vault_rag.corpus.frontmatter import split_frontmatter
+    from vault_rag.enrich.planner import EnrichInput, plan
+
+    if args.note:
+        note_path = os.path.join(args.root, args.note)
+        if not os.path.isfile(note_path):
+            return failure("enrich", "not_found", f"note not found: {args.note}")
+        with open(note_path, "r", encoding="utf-8", errors="strict") as handle:
+            raw = handle.read()
+        frontmatter, body = split_frontmatter(raw)
+        title = args.title or str(frontmatter.get("title") or "") or _derive_title(
+            body, PurePosixPath(args.note).stem
+        )
+        rel_path: Optional[str] = args.note
+    else:
+        body = sys.stdin.read()
+        frontmatter = {}
+        title = args.title or _derive_title(body, "Untitled")
+        rel_path = None
+
+    provider = get_provider()
+    store = get_store(args.chroma_path, args.collection, provider)
+    if store.collection.count() == 0:
+        return failure(
+            "enrich", "index_empty", "index is empty; run `vault-rag sync --root <dir>` first"
+        )
+
+    inp = EnrichInput(
+        body=body,
+        title=title,
+        path=rel_path,
+        existing_frontmatter=frontmatter,
+        given_title=args.title,
+        intent=args.intent,
+        source_type=args.source_type,
+        source_url=args.source_url,
+    )
+    try:
+        result = plan(inp, store, provider)
+    except OpenRouterError as exc:
+        return failure("enrich", "provider_error", str(exc))
+    return success("enrich", result=result)
+
+
 def _lint_text(report: Dict[str, Any]) -> str:
     lines = [
         f"Vault lint: {report['root']}",
@@ -352,6 +442,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_lint.add_argument("--root", required=True, help="Vault directory to lint")
     p_lint.add_argument("--format", choices=["json", "text"], default="json")
 
+    p_enrich = sub.add_parser("enrich", help="Propose an enrichment plan (no mutations)")
+    p_enrich.add_argument("--root", required=True, help="Corpus directory")
+    p_enrich.add_argument("--note", default=None, help="Vault-relative path of an existing note")
+    p_enrich.add_argument("--stdin", action="store_true", help="Enrich raw text read from stdin")
+    p_enrich.add_argument("--intent", default=None)
+    p_enrich.add_argument(
+        "--source-type", dest="source_type",
+        choices=["transcript", "web", "pdf", "manual"], default=None,
+    )
+    p_enrich.add_argument("--source-url", dest="source_url", default=None)
+    p_enrich.add_argument("--title", default=None, help="Known title override")
+
     return parser
 
 
@@ -361,6 +463,7 @@ _HANDLERS = {
     "retrieve": cmd_retrieve,
     "synthesize": cmd_synthesize,
     "lint": cmd_lint,
+    "enrich": cmd_enrich,
 }
 
 

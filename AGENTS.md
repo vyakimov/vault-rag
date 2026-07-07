@@ -32,6 +32,12 @@ by the `granularity` metadata field.
 - `uv run vault-rag lint --root <dir> [--format json|text]`
   - Read-only corpus health report (no LLM, no writes, no index needed): missing frontmatter
     fields, invalid/naive timestamps, duplicate ids, broken wikilinks, orphans, stale distilled notes.
+- `uv run vault-rag enrich --root <dir> (--note <path> | --stdin) [--intent ...] [--source-type transcript|web|pdf|manual] [--source-url ...] [--title ...]`
+  - App-agnostic **enrichment planner**: retrieves a note's neighborhood and proposes a title,
+    frontmatter patch (`type`/`aliases`/`source_type`/`source_url` only), inline links, related
+    candidates, and placement — as JSON. It **never mutates** files or the index; applying a plan
+    is obsctl's job. Only links to retrieved neighbors are proposed; the LLM output is validated in
+    code (confidence gating, anchor resolution, existing-type/link guards).
 - `uv run streamlit run scripts/streamlit_app.py`
   - Streamlit UI: Retrieve (mode + granularity selectors), Synthesize, Notes browser.
 - `uv run pytest`
@@ -87,6 +93,7 @@ The `vault_rag` package is layered:
 5. `vault_rag/compounding/`
    - `distill.py` — `save_distilled_note()` for `synthesize --save`.
    - `lint.py` — `lint_vault()` read-only health checks.
+   `vault_rag/enrich/planner.py` — `plan()` enrichment planner (read-only; proposes, never mutates).
 
 6. `vault_rag/llm/openrouter.py` — embeddings, rerank, and chat via OpenRouter.
 
