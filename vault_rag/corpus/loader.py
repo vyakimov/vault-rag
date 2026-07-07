@@ -20,8 +20,9 @@ IGNORE_TAG_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Vault-relative directory prefixes that are never indexed.
-SKIP_DIR_PARTS = {".trash", ".obsidian", "Templates"}
+# Vault-relative directory prefixes that are never indexed. "999 Templates" is
+# this vault's Templater folder (recorded in plans/phase-0-results.md).
+SKIP_DIR_PARTS = {".trash", ".obsidian", "Templates", "999 Templates"}
 
 
 @dataclass

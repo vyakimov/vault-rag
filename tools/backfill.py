@@ -28,10 +28,10 @@ from ulid import ULID
 # to the pre-refactor scripts/vault_ingestion.py the spec referenced).
 from vault_rag.corpus.frontmatter import coerce_datetime, split_frontmatter
 
-TIMESTAMP_POLICY = "utc_z"  # "utc_z" | "offset_local"
+TIMESTAMP_POLICY = "offset_local"  # per plans/phase-0-results.md: "utc_z" | "offset_local"
 
 ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
-SKIP_DIRS = {".trash", ".obsidian", "Templates"}
+SKIP_DIRS = {".trash", ".obsidian", "Templates", "999 Templates"}
 LEGACY_ID_FIELDS = ("uid", "ulid", "luid")
 CONTRACT_ORDER = ("id", "created", "updated")
 
@@ -43,7 +43,8 @@ def format_timestamp(dt: datetime) -> str:
         dt = dt.replace(tzinfo=timezone.utc)
     if TIMESTAMP_POLICY == "utc_z":
         return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return dt.astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
+    # offset-aware local, colon in the offset (e.g. 2026-07-07T14:30:00+02:00)
+    return dt.astimezone().isoformat(timespec="seconds")
 
 
 def iso_to_policy(iso_string: str) -> str:

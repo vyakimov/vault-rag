@@ -118,7 +118,12 @@ def test_git_first_commit_source(tmp_path):
     report = run(tmp_path, apply=False)
     created = changes_for(report, "n.md")["created"]
     assert created["source"] == "git_first_commit"
-    assert created["value"] == "2022-03-04T05:06:07Z"
+    # Timezone-robust: the recorded value must denote the commit instant,
+    # regardless of the active TIMESTAMP_POLICY (UTC Z vs offset-local).
+    from datetime import datetime, timezone
+    assert datetime.fromisoformat(created["value"]).astimezone(timezone.utc) == datetime(
+        2022, 3, 4, 5, 6, 7, tzinfo=timezone.utc
+    )
 
 
 def test_idempotent(tmp_path):

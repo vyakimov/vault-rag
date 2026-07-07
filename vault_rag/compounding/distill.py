@@ -13,8 +13,8 @@ from typing import Any, Dict, List
 
 from ulid import ULID
 
-# Timestamp policy comes from plans/phase-0-results.md if it exists, else UTC Z.
-TIMESTAMP_POLICY = "utc_z"
+# Timestamp policy recorded in plans/phase-0-results.md: offset-aware local.
+TIMESTAMP_POLICY = "offset_local"
 
 
 class EmptySlugError(ValueError):
@@ -25,7 +25,8 @@ def now_timestamp() -> str:
     now = datetime.now(timezone.utc)
     if TIMESTAMP_POLICY == "utc_z":
         return now.strftime("%Y-%m-%dT%H:%M:%SZ")
-    return now.astimezone().strftime("%Y-%m-%dT%H:%M:%S%z")
+    # offset-aware local, colon in the offset (e.g. 2026-07-07T14:30:00+02:00)
+    return now.astimezone().isoformat(timespec="seconds")
 
 
 def slugify(question: str) -> str:
