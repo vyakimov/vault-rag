@@ -80,6 +80,7 @@ Use only the note excerpts provided in <CONTEXT>.
 Every factual claim must cite one or more note ids like [S0] or [S0, S1].
 If the notes do not contain enough information, say that clearly.
 If the notes do not contain enough information to answer, set "abstained": true and say what is missing.
+Some context notes may be marked type=distilled: these are machine-written summaries of other notes. Treat them as pointers, not primary evidence — when a distilled note conflicts with a raw note, trust the raw note.
 Return JSON with this exact shape:
 {
   "answer": "<text>",
@@ -109,10 +110,11 @@ def build_context(
     for candidate in retrieval_output.get("candidates", []):
         citation_key = f"S{len(index_map)}"
         final_score = float(candidate.get("scores", {}).get("final", 0.0))
+        type_attr = " type=distilled" if candidate.get("type") == "distilled" else ""
         context_parts.append(
             "\n".join(
                 [
-                    f"<{citation_key} score={final_score:.4f}>",
+                    f"<{citation_key}{type_attr} score={final_score:.4f}>",
                     f"Title: {candidate.get('title', '(untitled)')}",
                     f"Path: {candidate.get('path', '')}",
                     candidate.get("excerpt", ""),

@@ -22,9 +22,16 @@ by the `granularity` metadata field.
 - `uv run vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
   - Returns the retrieval output contract (candidates with score breakdown). Defaults: `fast`, `document`.
   - `fast` skips reranking; `thorough` reranks the top candidates.
-- `uv run vault-rag synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json] [--n-context 8]`
+- `uv run vault-rag synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json] [--n-context 8] [--save --root <dir> [--save-dir Distilled]]`
   - Retrieves (defaults `thorough`/`mixed`) then synthesizes a cited answer. `--retrieval` reuses a
     prior `retrieve` envelope/contract and skips retrieval. Abstains when the notes lack the answer.
+  - `--save` persists a high-quality answer as a create-only **distilled note** (`type: distilled`)
+    under `<root>/<save-dir>`. Skips (with a warning) when the answer abstained, is low-confidence,
+    has no citations, or the target exists. Distilled notes are regenerable pointers to their
+    sources — raw notes always win on conflict. Run `vault-rag sync` afterward to index it.
+- `uv run vault-rag lint --root <dir> [--format json|text]`
+  - Read-only corpus health report (no LLM, no writes, no index needed): missing frontmatter
+    fields, invalid/naive timestamps, duplicate ids, broken wikilinks, orphans, stale distilled notes.
 - `uv run streamlit run scripts/streamlit_app.py`
   - Streamlit UI: Retrieve (mode + granularity selectors), Synthesize, Notes browser.
 - `uv run pytest`
@@ -77,11 +84,15 @@ The `vault_rag` package is layered:
    - `answer.py` — `synthesize()` turns a retrieval contract into a cited answer with abstention;
      robust JSON parsing / truncation repair.
 
-5. `vault_rag/llm/openrouter.py` — embeddings, rerank, and chat via OpenRouter.
+5. `vault_rag/compounding/`
+   - `distill.py` — `save_distilled_note()` for `synthesize --save`.
+   - `lint.py` — `lint_vault()` read-only health checks.
 
-6. `vault_rag/cli.py` + `vault_rag/envelope.py` — the JSON CLI and envelope helpers.
+6. `vault_rag/llm/openrouter.py` — embeddings, rerank, and chat via OpenRouter.
 
-7. `scripts/streamlit_*.py` — Streamlit pages that import from `vault_rag`.
+7. `vault_rag/cli.py` + `vault_rag/envelope.py` — the JSON CLI and envelope helpers.
+
+8. `scripts/streamlit_*.py` — Streamlit pages that import from `vault_rag`.
 
 ## Paths & Persistence
 

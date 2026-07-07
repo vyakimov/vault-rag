@@ -62,8 +62,18 @@ def _schema() -> Dict[str, Any]:
                     "--granularity": "document|section|mixed (default mixed)",
                     "--retrieval": "path to a prior retrieve envelope/contract",
                     "--n-context": "int (default 8)",
+                    "--save": "flag: persist a good answer as a distilled note (needs --root, live query)",
+                    "--save-dir": "distilled folder relative to --root (default Distilled)",
+                    "--root": "vault directory to write the distilled note into",
                 },
-                "result": "synthesis_output (with embedded retrieval)",
+                "result": "synthesis_output (with embedded retrieval; +saved/saved_path when --save)",
+            },
+            "lint": {
+                "args": {
+                    "--root": "vault directory (required)",
+                    "--format": "json|text (default json)",
+                },
+                "result": "lint_report",
             },
         },
         "contracts": {
@@ -111,6 +121,22 @@ def _schema() -> Dict[str, Any]:
                 "notes_used": ["str"],
                 "warnings": ["str"],
                 "retrieval": "retrieval_output",
+                "saved": "bool (with --save)",
+                "saved_path": "str|null (with --save)",
+            },
+            "lint_report": {
+                "root": "str",
+                "notes_scanned": "int",
+                "notes_ignored": "int",
+                "summary": {
+                    "missing_frontmatter_fields": "int",
+                    "invalid_timestamps": "int",
+                    "duplicate_ids": "int",
+                    "broken_wikilinks": "int",
+                    "orphans": "int",
+                    "stale_distilled": "int",
+                },
+                "findings": "object (per-check lists)",
             },
         },
         "error_types": [
@@ -187,6 +213,15 @@ def _load_retrieval_file(path: str) -> Dict[str, Any]:
 def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
     provider = get_provider()
 
+    if args.save and args.retrieval:
+        return failure(
+            "synthesize",
+            "invalid_arguments",
+            "--save cannot be combined with --retrieval (replay); it needs a live query",
+        )
+    if args.save and not args.root:
+        return failure("synthesize", "invalid_arguments", "--root is required with --save")
+
     if args.retrieval:
         try:
             retrieval_output = _load_retrieval_file(args.retrieval)
@@ -228,8 +263,54 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
     except OpenRouterError as exc:
         return failure("synthesize", "provider_error", str(exc))
 
+    meta: Dict[str, Any] = {}
+    if args.save:
+        from vault_rag.compounding.distill import EmptySlugError, save_distilled_note
+
+        try:
+            save_result = save_distilled_note(synth, args.root, args.save_dir)
+        except EmptySlugError as exc:
+            return failure("synthesize", "invalid_arguments", str(exc))
+        synth["saved"] = save_result["saved"]
+        synth["saved_path"] = save_result["saved_path"]
+        synth.setdefault("warnings", []).extend(save_result["warnings"])
+        if save_result["saved"]:
+            meta["hint"] = "run vault-rag sync to index the distilled note"
+
     synth["retrieval"] = retrieval_output
-    return success("synthesize", result=synth)
+    return success("synthesize", result=synth, meta=meta)
+
+
+def _lint_text(report: Dict[str, Any]) -> str:
+    lines = [
+        f"Vault lint: {report['root']}",
+        f"  notes scanned: {report['notes_scanned']}  ignored: {report['notes_ignored']}",
+        "",
+        "Summary:",
+    ]
+    for check, count in report["summary"].items():
+        lines.append(f"  {check:<28} {count}")
+    for check, entries in report["findings"].items():
+        if not entries:
+            continue
+        lines.append("")
+        lines.append(f"{check} (first 20):")
+        for entry in entries[:20]:
+            lines.append(f"  {entry}")
+    return "\n".join(lines)
+
+
+def cmd_lint(args: argparse.Namespace) -> Dict[str, Any]:
+    if not os.path.isdir(args.root):
+        return failure("lint", "invalid_arguments", f"root directory not found: {args.root}")
+
+    from vault_rag.compounding.lint import lint_vault
+
+    report = lint_vault(args.root)
+    if args.format == "text":
+        sys.stdout.write(_lint_text(report) + "\n")
+        return {"ok": True, "_no_print": True}
+    return success("lint", result=report)
 
 
 # -- parser -------------------------------------------------------------------
@@ -263,6 +344,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_synth.add_argument("--retrieval", default=None, help="Prior retrieve envelope/contract")
     p_synth.add_argument("-n", type=int, default=10)
     p_synth.add_argument("--n-context", dest="n_context", type=int, default=8)
+    p_synth.add_argument("--save", action="store_true", help="Persist a good answer as a distilled note")
+    p_synth.add_argument("--save-dir", dest="save_dir", default="Distilled", help="Distilled note folder (relative to --root)")
+    p_synth.add_argument("--root", default=None, help="Vault directory to write the distilled note into")
+
+    p_lint = sub.add_parser("lint", help="Read-only corpus health report")
+    p_lint.add_argument("--root", required=True, help="Vault directory to lint")
+    p_lint.add_argument("--format", choices=["json", "text"], default="json")
 
     return parser
 
@@ -272,6 +360,7 @@ _HANDLERS = {
     "sync": cmd_sync,
     "retrieve": cmd_retrieve,
     "synthesize": cmd_synthesize,
+    "lint": cmd_lint,
 }
 
 
@@ -287,6 +376,9 @@ def main(argv: Optional[list] = None) -> int:
         envelope = handler(args)
     except Exception as exc:  # noqa: BLE001 - top-level guard -> internal_error envelope
         envelope = failure(args.command, "internal_error", str(exc))
+
+    if envelope.pop("_no_print", False):
+        return 0 if envelope.get("ok") else 1
 
     print_json(envelope)
     return 0 if envelope.get("ok") else 1
