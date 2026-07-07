@@ -101,6 +101,11 @@ The `vault_rag` package is layered:
 
 8. `scripts/streamlit_*.py` — Streamlit pages that import from `vault_rag`.
 
+`tools/backfill.py` — standalone one-time migration that adds `id`/`created`/`updated`
+frontmatter to existing notes (dry-run by default; `--apply` to write; never touches bodies).
+`uv run tools/backfill.py --root <dir> [--apply] [--report <path>]`. Timestamp policy defaults to
+UTC `Z` (`TIMESTAMP_POLICY` in the file); Phase 0 may switch it to offset-aware local.
+
 ## Paths & Persistence
 
 - ChromaDB directory: `./chroma_db/`
