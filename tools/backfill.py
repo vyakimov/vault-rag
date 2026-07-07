@@ -40,7 +40,8 @@ CONTRACT_ORDER = ("id", "created", "updated")
 
 def format_timestamp(dt: datetime) -> str:
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        # naive == local wall-clock (see coerce_datetime); attach local offset, not UTC
+        dt = dt.astimezone()
     if TIMESTAMP_POLICY == "utc_z":
         return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     # offset-aware local, colon in the offset (e.g. 2026-07-07T14:30:00+02:00)

@@ -40,23 +40,27 @@ def normalize_tags(value: Any) -> List[str]:
 
 
 def coerce_datetime(value: Any) -> dt.datetime | None:
+    # A naive timestamp in frontmatter is local wall-clock time — that is how
+    # Obsidian/Templater and humans write it (e.g. a daily note's "date: ...T15:10").
+    # Attach the local offset via astimezone(), which honors historical DST from the
+    # OS tz database; never assume UTC, or the wall-clock time shifts by the offset.
     if value is None:
         return None
     if isinstance(value, dt.datetime):
-        return value if value.tzinfo else value.replace(tzinfo=dt.timezone.utc)
+        return value if value.tzinfo else value.astimezone()
     if isinstance(value, dt.date):
-        return dt.datetime.combine(value, dt.time.min, tzinfo=dt.timezone.utc)
+        return dt.datetime.combine(value, dt.time.min).astimezone()
     if isinstance(value, str):
         candidate = value.strip().replace("Z", "+00:00")
         for parser in (dt.datetime.fromisoformat,):
             try:
                 parsed = parser(candidate)
-                return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+                return parsed if parsed.tzinfo else parsed.astimezone()
             except ValueError:
                 continue
         try:
             parsed_date = dt.date.fromisoformat(candidate)
-            return dt.datetime.combine(parsed_date, dt.time.min, tzinfo=dt.timezone.utc)
+            return dt.datetime.combine(parsed_date, dt.time.min).astimezone()
         except ValueError:
             return None
     return None
