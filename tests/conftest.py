@@ -78,6 +78,7 @@ def tiny_vault(tmp_path: Path) -> Path:
     (vault / "note_a.md").write_text(
         "---\n"
         "title: Alpha note\n"
+        "type: recipe\n"
         "date: 2024-01-10\n"
         "tags: [alpha, notes]\n"
         "---\n"

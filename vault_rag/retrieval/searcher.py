@@ -131,6 +131,11 @@ class Searcher:
         recency_boost_enabled: Optional[bool] = None,
         recency_weight: Optional[float] = None,
         recency_decay_days: Optional[float] = None,
+        folder: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        note_type: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
     ) -> RetrievalResult:
         started = datetime.now(timezone.utc)
         granularity = granularity or self.default_granularity
@@ -170,8 +175,48 @@ class Searcher:
                     for term in normalized_terms
                 )
             }
+        since_date = self._parse_filter_date(since, "since")
+        until_date = self._parse_filter_date(until, "until")
+        if any(value is not None for value in (folder, tags, note_type, since, until)):
+            requested_tags = {tag.lower() for tag in tags or []}
+
+            def matches(metadata: Dict[str, object]) -> bool:
+                metadata_folder = str(metadata.get("folder", ""))
+                if folder and not (
+                    metadata_folder == folder
+                    or metadata_folder.startswith(folder.rstrip("/") + "/")
+                ):
+                    return False
+                note_tags = {
+                    tag.strip().lower()
+                    for tag in str(metadata.get("tags", "")).split(",")
+                    if tag.strip()
+                }
+                if not requested_tags.issubset(note_tags):
+                    return False
+                if note_type and str(metadata.get("note_type", "")).lower() != note_type.lower():
+                    return False
+                if since_date is not None or until_date is not None:
+                    raw = str(metadata.get("updated") or metadata.get("date") or "")
+                    try:
+                        entry_date = self._parse_filter_date(raw, "entry") if raw else None
+                    except ValueError:
+                        return False
+                    if entry_date is None:
+                        return False
+                    if since_date is not None and entry_date < since_date:
+                        return False
+                    if until_date is not None and entry_date > until_date:
+                        return False
+                return True
+
+            allowed_ids &= {
+                doc_id
+                for doc_id, metadata in zip(ids, metadatas)
+                if matches(metadata)
+            }
         if not allowed_ids:
-            raise ValueError("No documents match the required terms.")
+            raise ValueError("No documents match the required filters.")
 
         query_embedding = self.provider.embed_texts([query])[0]
         semantic_results = self.store.collection.query(
@@ -344,6 +389,18 @@ class Searcher:
             ),
             "rerank_enabled": rerank_ran,
             "data_granularity": data_granularity,
+            "filters": {
+                key: value
+                for key, value in {
+                    "folder": folder,
+                    "tags": tags,
+                    "note_type": note_type,
+                    "since": since,
+                    "until": until,
+                    "must_include": must_include_terms,
+                }.items()
+                if value is not None
+            },
         }
         return RetrievalResult(
             query=query,
@@ -353,3 +410,15 @@ class Searcher:
             debug_info=debug_info,
             timing_ms=elapsed_ms,
         )
+
+    @staticmethod
+    def _parse_filter_date(value: Optional[str], label: str) -> Optional[datetime]:
+        if value is None:
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"invalid --{label} date: {value}") from exc
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed

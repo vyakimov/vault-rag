@@ -78,6 +78,7 @@ def _schema() -> Dict[str, Any]:
                     "--mode": "fast|thorough (default fast)",
                     "--granularity": "document|section|mixed (mixed = section pool, max 3 sections per note; documents are not searched)",
                     "-n": "int (default 10)",
+                    "--folder/--tag/--type/--since/--until/--must-include": "metadata and required-term filters",
                 },
                 "result": "retrieval_output",
             },
@@ -91,6 +92,7 @@ def _schema() -> Dict[str, Any]:
                     "--save": "flag: persist a good answer as a distilled note (needs --root, live query)",
                     "--save-dir": "distilled folder relative to --root (default Distilled)",
                     "--root": "vault directory to write the distilled note into",
+                    "--folder/--tag/--type/--since/--until/--must-include": "metadata and required-term filters",
                 },
                 "result": "synthesis_output (with embedded retrieval; +saved/saved_path when --save)",
             },
@@ -239,21 +241,47 @@ def cmd_stats(args: argparse.Namespace) -> Dict[str, Any]:
     return success("stats", result=reader.get_collection_stats())
 
 
-def _run_retrieval(store, provider, query, mode, granularity, n_results):
+def _run_retrieval(store, provider, query, mode, granularity, n_results, args):
     from vault_rag.retrieval.evidence import build_retrieval_output
     from vault_rag.retrieval.searcher import Searcher
 
     searcher = Searcher(store, granularity=granularity, provider=provider)
     result = searcher.hybrid_search(
-        query, mode=mode, granularity=granularity, n_results=n_results
+        query,
+        mode=mode,
+        granularity=granularity,
+        n_results=n_results,
+        folder=args.folder,
+        tags=args.tags,
+        note_type=args.note_type,
+        since=args.since,
+        until=args.until,
+        must_include_terms=args.must_include_terms,
     )
     output = build_retrieval_output(query, mode, granularity, result.rows, store)
     return output, result
 
 
+def _validate_filter_dates(args: argparse.Namespace) -> Optional[str]:
+    from datetime import datetime
+
+    for name in ("since", "until"):
+        value = getattr(args, name, None)
+        if value is None:
+            continue
+        try:
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return f"invalid --{name} date: {value}"
+    return None
+
+
 def cmd_retrieve(args: argparse.Namespace) -> Dict[str, Any]:
     if not args.query or not args.query.strip():
         return failure("retrieve", "invalid_arguments", "--query is required")
+    date_error = _validate_filter_dates(args)
+    if date_error:
+        return failure("retrieve", "invalid_arguments", date_error)
     provider = get_provider()
     store = get_store(args.chroma_path, args.collection, provider)
     if store.collection.count() == 0:
@@ -264,7 +292,7 @@ def cmd_retrieve(args: argparse.Namespace) -> Dict[str, Any]:
         )
     try:
         output, result = _run_retrieval(
-            store, provider, args.query, args.mode, args.granularity, args.n
+            store, provider, args.query, args.mode, args.granularity, args.n, args
         )
     except OpenRouterError as exc:
         return failure("retrieve", "provider_error", str(exc))
@@ -285,6 +313,9 @@ def _load_retrieval_file(path: str) -> Dict[str, Any]:
 
 
 def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
+    date_error = _validate_filter_dates(args)
+    if date_error:
+        return failure("synthesize", "invalid_arguments", date_error)
     provider = get_provider()
 
     if args.save and args.retrieval:
@@ -327,7 +358,7 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
             )
         try:
             retrieval_output, _ = _run_retrieval(
-                store, provider, query, args.mode, args.granularity, args.n
+                store, provider, query, args.mode, args.granularity, args.n, args
             )
         except OpenRouterError as exc:
             return failure("synthesize", "provider_error", str(exc))
@@ -456,6 +487,17 @@ def cmd_lint(args: argparse.Namespace) -> Dict[str, Any]:
 
 # -- parser -------------------------------------------------------------------
 
+def _add_filter_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--folder", default=None)
+    parser.add_argument("--tag", dest="tags", action="append", default=None)
+    parser.add_argument("--type", dest="note_type", default=None)
+    parser.add_argument("--since", default=None)
+    parser.add_argument("--until", default=None)
+    parser.add_argument(
+        "--must-include", dest="must_include_terms", action="append", default=None
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="vault-rag", description="Vault RAG JSON CLI")
     parser.add_argument("--chroma-path", default="chroma_db", help="Chroma persistence dir")
@@ -489,6 +531,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--granularity", choices=["document", "section", "mixed"], default="document"
     )
     p_retrieve.add_argument("-n", type=int, default=10)
+    _add_filter_arguments(p_retrieve)
 
     p_synth = sub.add_parser(
         "synthesize", parents=[common], help="Retrieve then synthesize an answer"
@@ -504,6 +547,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_synth.add_argument("--save", action="store_true", help="Persist a good answer as a distilled note")
     p_synth.add_argument("--save-dir", dest="save_dir", default="Distilled", help="Distilled note folder (relative to --root)")
     p_synth.add_argument("--root", default=None, help="Vault directory to write the distilled note into")
+    _add_filter_arguments(p_synth)
 
     p_lint = sub.add_parser("lint", parents=[common], help="Read-only corpus health report")
     p_lint.add_argument("--root", required=True, help="Vault directory to lint")
