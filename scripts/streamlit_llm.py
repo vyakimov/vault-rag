@@ -9,8 +9,6 @@ from streamlit_models import get_openrouter_client
 from vault_rag.index.reader import DatabaseReader
 from vault_rag.synthesis.answer import synthesize
 
-client = get_openrouter_client()
-
 st.markdown("# Synthesize")
 
 
@@ -84,6 +82,11 @@ if st.session_state["last_results"] is None:
 else:
     retrieval_output = st.session_state["last_results"]
     query = retrieval_output.get("query", "")
+    try:
+        client = get_openrouter_client()
+    except Exception as exc:
+        st.error(f"OpenRouter is not configured: {exc}")
+        st.stop()
 
     with st.chat_message("user"):
         st.write(query)
@@ -97,10 +100,12 @@ else:
     st.caption(f"Using up to {len(retrieval_output.get('candidates', []))} candidates for synthesis.")
 
     if st.session_state["llm_response"] is None:
-        with st.spinner("Synthesizing..."):
-            st.session_state["llm_response"] = synthesize(
-                client, retrieval_output, question=query, max_tokens=4096
-            )
-
-    with st.chat_message("assistant"):
-        write_response(st.session_state["llm_response"])
+        if st.button("🤖 Synthesize", type="primary"):
+            with st.spinner("Synthesizing..."):
+                st.session_state["llm_response"] = synthesize(
+                    client, retrieval_output, question=query, max_tokens=4096
+                )
+            st.rerun()
+    else:
+        with st.chat_message("assistant"):
+            write_response(st.session_state["llm_response"])
