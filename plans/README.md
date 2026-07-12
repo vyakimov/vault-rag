@@ -16,6 +16,7 @@ access to the design conversation. Feed an agent exactly one phase file plus rep
 | 5 | `phase-5-obsctl.md` | new repo `~/openclaw/obsctl` | 0 (V4 answer) |
 | 6 | `phase-6-capture-flow.md` | both repos + running Obsidian | 2, 4, 5 (3 optional) |
 | 7 | `phase-7-skill-layer.md` | `~/.claude/skills/vault/` | 2–6 |
+| 8 | `phase-8-hardening-and-features.md` | vault-rag repo | 2–4 + review bug-fix branch merged (see file header) |
 
 Recommended order: **2 → 0 → 1 → 3 → 4 → 5 → 6 → 7** (2 first: highest leverage, no Obsidian-side setup).
 
