@@ -21,6 +21,7 @@ by the `granularity` metadata field.
     Notes sharing a duplicate frontmatter `id` are skipped after the first and reported in
     the result's `warnings`.
   - `--reset` rebuilds the collection from scratch (needed once after an entry-shape change).
+- `uv run vault-rag stats` — index statistics (no API key needed).
 - `uv run vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
   - Returns the retrieval output contract (candidates with score breakdown). Defaults: `fast`, `document`.
     `mixed` searches the section pool with a 3-sections-per-note cap (it does not mix in document entries).

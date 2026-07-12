@@ -54,6 +54,18 @@ def _schema() -> Dict[str, Any]:
                     "warnings": ["str"],
                 },
             },
+            "stats": {
+                "args": {},
+                "result": {
+                    "total_documents": "int",
+                    "total_entries": "int",
+                    "section_entries": "int",
+                    "unique_folders": "int",
+                    "unique_tags": "int",
+                    "dated_notes": "int",
+                    "embedding_model": "str",
+                },
+            },
             "retrieve": {
                 "args": {
                     "--query": "str (required)",
@@ -198,6 +210,19 @@ def cmd_sync(args: argparse.Namespace) -> Dict[str, Any]:
     store = get_store(args.chroma_path, args.collection, provider)
     result = store.sync(root, reset=args.reset)
     return success("sync", result=result, meta={"root": root, "reset": args.reset})
+
+
+def cmd_stats(args: argparse.Namespace) -> Dict[str, Any]:
+    from vault_rag.index.reader import DatabaseReader
+
+    reader = DatabaseReader(args.chroma_path, args.collection)
+    if reader.collection is None or reader.collection.count() == 0:
+        return failure(
+            "stats",
+            "index_empty",
+            "index is empty; run `vault-rag sync --root <dir>` first",
+        )
+    return success("stats", result=reader.get_collection_stats())
 
 
 def _run_retrieval(store, provider, query, mode, granularity, n_results):
@@ -440,6 +465,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("--root", required=True, help="Vault directory to index")
     p_sync.add_argument("--reset", action="store_true", help="Rebuild from scratch")
 
+    sub.add_parser("stats", parents=[common], help="Index statistics")
+
     p_retrieve = sub.add_parser("retrieve", parents=[common], help="Retrieve candidate notes")
     p_retrieve.add_argument("--query", required=True)
     p_retrieve.add_argument("--mode", choices=["fast", "thorough"], default="fast")
@@ -487,6 +514,7 @@ def build_parser() -> argparse.ArgumentParser:
 _HANDLERS = {
     "schema": cmd_schema,
     "sync": cmd_sync,
+    "stats": cmd_stats,
     "retrieve": cmd_retrieve,
     "synthesize": cmd_synthesize,
     "lint": cmd_lint,

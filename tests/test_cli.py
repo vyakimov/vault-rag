@@ -94,6 +94,31 @@ class TestEmptyIndexError:
         assert envelope["error"]["type"] == "index_empty"
 
 
+class TestStats:
+    def test_missing_index_is_empty(self, capsys, tmp_path):
+        code, envelope = run(
+            capsys, ["stats", "--chroma-path", str(tmp_path / "missing")]
+        )
+
+        assert code == 1
+        assert envelope["error"]["type"] == "index_empty"
+
+    def test_reports_index_without_provider_key(
+        self, capsys, tmp_path, tiny_vault, fake_provider, monkeypatch
+    ):
+        chroma = str(tmp_path / "chroma")
+        monkeypatch.setattr(cli, "get_provider", lambda: fake_provider)
+        run(capsys, ["sync", "--chroma-path", chroma, "--root", str(tiny_vault)])
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+        code, envelope = run(capsys, ["stats", "--chroma-path", chroma])
+
+        assert code == 0
+        assert envelope["result"]["total_documents"] == 5
+        assert envelope["result"]["section_entries"] >= 5
+        assert envelope["result"]["embedding_model"] == "fake-embed"
+
+
 class TestInvalidArguments:
     def test_sync_missing_root(self, capsys, tmp_path, fake_provider, monkeypatch):
         monkeypatch.setattr(cli, "get_provider", lambda: fake_provider)

@@ -49,7 +49,13 @@ class DatabaseReader:
         return {
             "total_documents": len(document_metas),
             "total_entries": self.collection.count(),
+            "section_entries": sum(
+                metadata.get("granularity") == "section" for metadata in metadatas
+            ),
             "unique_folders": len(folders),
             "unique_tags": len(tags),
             "dated_notes": dated_notes,
+            "embedding_model": (self.collection.metadata or {}).get(
+                "embedding_model", "unknown"
+            ),
         }
