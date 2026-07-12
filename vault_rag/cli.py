@@ -421,15 +421,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="vault-rag", description="Vault RAG JSON CLI")
     parser.add_argument("--chroma-path", default="chroma_db", help="Chroma persistence dir")
     parser.add_argument("--collection", default="vault_notes", help="Chroma collection name")
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--chroma-path", default=argparse.SUPPRESS, help="Chroma persistence dir"
+    )
+    common.add_argument(
+        "--collection", default=argparse.SUPPRESS, help="Chroma collection name"
+    )
     sub = parser.add_subparsers(dest="command")
 
-    sub.add_parser("schema", help="Print machine-readable command + contract schema")
+    sub.add_parser(
+        "schema", parents=[common], help="Print machine-readable command + contract schema"
+    )
 
-    p_sync = sub.add_parser("sync", help="Incrementally sync the vault into the index")
+    p_sync = sub.add_parser(
+        "sync", parents=[common], help="Incrementally sync the vault into the index"
+    )
     p_sync.add_argument("--root", required=True, help="Vault directory to index")
     p_sync.add_argument("--reset", action="store_true", help="Rebuild from scratch")
 
-    p_retrieve = sub.add_parser("retrieve", help="Retrieve candidate notes")
+    p_retrieve = sub.add_parser("retrieve", parents=[common], help="Retrieve candidate notes")
     p_retrieve.add_argument("--query", required=True)
     p_retrieve.add_argument("--mode", choices=["fast", "thorough"], default="fast")
     p_retrieve.add_argument(
@@ -437,7 +448,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_retrieve.add_argument("-n", type=int, default=10)
 
-    p_synth = sub.add_parser("synthesize", help="Retrieve then synthesize an answer")
+    p_synth = sub.add_parser(
+        "synthesize", parents=[common], help="Retrieve then synthesize an answer"
+    )
     p_synth.add_argument("--query", default=None)
     p_synth.add_argument("--mode", choices=["fast", "thorough"], default="thorough")
     p_synth.add_argument(
@@ -450,11 +463,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_synth.add_argument("--save-dir", dest="save_dir", default="Distilled", help="Distilled note folder (relative to --root)")
     p_synth.add_argument("--root", default=None, help="Vault directory to write the distilled note into")
 
-    p_lint = sub.add_parser("lint", help="Read-only corpus health report")
+    p_lint = sub.add_parser("lint", parents=[common], help="Read-only corpus health report")
     p_lint.add_argument("--root", required=True, help="Vault directory to lint")
     p_lint.add_argument("--format", choices=["json", "text"], default="json")
 
-    p_enrich = sub.add_parser("enrich", help="Propose an enrichment plan (no mutations)")
+    p_enrich = sub.add_parser(
+        "enrich", parents=[common], help="Propose an enrichment plan (no mutations)"
+    )
     p_enrich.add_argument("--root", required=True, help="Corpus directory")
     p_enrich.add_argument("--note", default=None, help="Vault-relative path of an existing note")
     p_enrich.add_argument("--stdin", action="store_true", help="Enrich raw text read from stdin")

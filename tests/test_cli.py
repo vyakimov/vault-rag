@@ -37,6 +37,33 @@ class TestEnvelopeShape:
         assert envelope["action"] == "sync"
         assert envelope["result"]["added_notes"] == 5
 
+    def test_chroma_path_after_subcommand(
+        self, capsys, tmp_path, tiny_vault, fake_provider, monkeypatch
+    ):
+        monkeypatch.setattr(cli, "get_provider", lambda: fake_provider)
+        chroma = tmp_path / "after"
+
+        code, envelope = run(
+            capsys,
+            ["sync", "--chroma-path", str(chroma), "--root", str(tiny_vault)],
+        )
+
+        assert code == 0
+        assert envelope["ok"] is True
+        assert chroma.exists()
+
+    def test_chroma_path_default(
+        self, capsys, tmp_path, tiny_vault, fake_provider, monkeypatch
+    ):
+        monkeypatch.setattr(cli, "get_provider", lambda: fake_provider)
+        monkeypatch.chdir(tmp_path)
+
+        code, envelope = run(capsys, ["sync", "--root", str(tiny_vault)])
+
+        assert code == 0
+        assert envelope["ok"] is True
+        assert (tmp_path / "chroma_db").exists()
+
 
 class TestSyncAndRetrieve:
     def test_retrieve_returns_candidates(self, capsys, tmp_path, tiny_vault, fake_provider, monkeypatch):
