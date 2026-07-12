@@ -88,6 +88,14 @@ def test_rehydrate_on_new_store_instance(tmp_path, tiny_vault, fake_provider):
 
     fresh = build_store(tmp_path / "chroma", fake_provider)
     assert len(fresh.metadatas["document"]) == 5
+    assert fresh.bm25["document"] is None
+    assert fresh.bm25["section"] is None
+
+    fresh.granularity_data("document")
+    assert fresh.bm25["document"] is not None
+    assert fresh.bm25["section"] is None
+
+    fresh.granularity_data("section")
     assert fresh.bm25["document"] is not None
     assert fresh.bm25["section"] is not None
 

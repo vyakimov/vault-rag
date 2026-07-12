@@ -132,18 +132,18 @@ class IndexStore:
             self.documents[granularity].append(document)
             self.metadatas[granularity].append(metadata)
 
-        for granularity in GRANULARITIES:
-            documents = self.documents[granularity]
-            if not documents:
-                continue
-            self.tokenized[granularity] = self._tokenize(documents)
-            self.bm25[granularity] = BM25Okapi(
-                self.tokenized[granularity], k1=self.bm25_k1, b=self.bm25_b
-            )
+    def _ensure_bm25(self, granularity: str) -> None:
+        if self.bm25[granularity] is not None or not self.documents[granularity]:
+            return
+        self.tokenized[granularity] = self._tokenize(self.documents[granularity])
+        self.bm25[granularity] = BM25Okapi(
+            self.tokenized[granularity], k1=self.bm25_k1, b=self.bm25_b
+        )
 
     def granularity_data(
         self, granularity: str
     ) -> Tuple[List[str], List[str], List[Dict[str, object]], Optional[BM25Okapi]]:
+        self._ensure_bm25(granularity)
         return (
             self.documents[granularity],
             self.ids[granularity],
