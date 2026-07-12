@@ -58,7 +58,7 @@ def _schema() -> Dict[str, Any]:
                 "args": {
                     "--query": "str (required)",
                     "--mode": "fast|thorough (default fast)",
-                    "--granularity": "document|section|mixed (default document)",
+                    "--granularity": "document|section|mixed (mixed = section pool, max 3 sections per note; documents are not searched)",
                     "-n": "int (default 10)",
                 },
                 "result": "retrieval_output",
@@ -67,7 +67,7 @@ def _schema() -> Dict[str, Any]:
                 "args": {
                     "--query": "str",
                     "--mode": "fast|thorough (default thorough)",
-                    "--granularity": "document|section|mixed (default mixed)",
+                    "--granularity": "document|section|mixed (mixed = section pool, max 3 sections per note; documents are not searched)",
                     "--retrieval": "path to a prior retrieve envelope/contract",
                     "--n-context": "int (default 8)",
                     "--save": "flag: persist a good answer as a distilled note (needs --root, live query)",

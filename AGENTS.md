@@ -23,6 +23,7 @@ by the `granularity` metadata field.
   - `--reset` rebuilds the collection from scratch (needed once after an entry-shape change).
 - `uv run vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
   - Returns the retrieval output contract (candidates with score breakdown). Defaults: `fast`, `document`.
+    `mixed` searches the section pool with a 3-sections-per-note cap (it does not mix in document entries).
   - `fast` skips reranking; `thorough` reranks the top candidates.
 - `uv run vault-rag synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json] [--n-context 8] [--save --root <dir> [--save-dir Distilled]]`
   - Retrieves (defaults `thorough`/`mixed`) then synthesizes a cited answer. `--retrieval` reuses a
