@@ -8,8 +8,12 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from vault_rag.corpus.frontmatter import coerce_datetime, split_frontmatter
-from vault_rag.corpus.loader import SKIP_DIR_PARTS, has_ignore_tag
+from vault_rag.corpus.frontmatter import coerce_datetime, normalize_tags, split_frontmatter
+from vault_rag.corpus.loader import (
+    SKIP_DIR_PARTS,
+    has_ignore_frontmatter_tag,
+    has_ignore_tag,
+)
 
 WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]")
 INLINE_CODE_RE = re.compile(r"`[^`]*`")
@@ -139,7 +143,9 @@ def lint_vault(root: str) -> Dict[str, Any]:
         except UnicodeDecodeError:
             continue
         frontmatter, body = split_frontmatter(raw)
-        if has_ignore_tag(body):
+        if has_ignore_tag(body) or has_ignore_frontmatter_tag(
+            normalize_tags(frontmatter.get("tags"))
+        ):
             notes_ignored += 1
             continue
         note = NoteInfo(

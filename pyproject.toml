@@ -8,13 +8,10 @@ dependencies = [
   "httpx==0.28.1",
   "nltk==3.9.1",
   "pandas==2.3.1",
-  "pandas-stubs",
-  "pyright",
   "python-dotenv",
   "python-ulid",
   "PyYAML==6.0.2",
   "rank-bm25",
-  "rich",
   "streamlit",
 ]
 
@@ -30,6 +27,8 @@ vault-rag = "vault_rag.cli:main"
 
 [dependency-groups]
 dev = [
+  "pandas-stubs",
+  "pyright",
   "pytest",
 ]
 

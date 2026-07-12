@@ -90,3 +90,48 @@ def test_rehydrate_on_new_store_instance(tmp_path, tiny_vault, fake_provider):
     assert len(fresh.metadatas["document"]) == 5
     assert fresh.bm25["document"] is not None
     assert fresh.bm25["section"] is not None
+
+
+def test_moving_a_note_updates_path_metadata(tmp_path, tiny_vault, fake_provider):
+    # A frontmatter id keeps note_id stable across the move; only the path changes.
+    (tiny_vault / "note_moved.md").write_text(
+        "---\nid: 01ARZ3NDEKTSV4RRFFQ69G5FAV\ntitle: Movable\n---\nSame body.\n",
+        encoding="utf-8",
+    )
+    store = build_store(tmp_path / "chroma", fake_provider)
+    store.sync(str(tiny_vault))
+
+    archive = tiny_vault / "Archive"
+    archive.mkdir()
+    (tiny_vault / "note_moved.md").rename(archive / "note_moved.md")
+    result = store.sync(str(tiny_vault))
+
+    assert result["updated_notes"] == 1
+    assert result["deleted_notes"] == 0
+    assert result["added_notes"] == 0
+    paths = {m.get("path") for m in store.metadatas["document"]}
+    assert "Archive/note_moved.md" in paths
+    assert "note_moved.md" not in paths
+
+
+def test_duplicate_frontmatter_ids_skip_later_note(tmp_path, fake_provider):
+    vault = tmp_path / "dupvault"
+    vault.mkdir()
+    (vault / "a.md").write_text(
+        "---\nid: 01ARZ3NDEKTSV4RRFFQ69G5FAV\ntitle: First\n---\nBody A.\n",
+        encoding="utf-8",
+    )
+    (vault / "b.md").write_text(
+        "---\nid: 01ARZ3NDEKTSV4RRFFQ69G5FAV\ntitle: Second\n---\nBody B.\n",
+        encoding="utf-8",
+    )
+
+    store = build_store(tmp_path / "chroma", fake_provider)
+    result = store.sync(str(vault))
+
+    assert result["added_notes"] == 1
+    assert len(result["warnings"]) == 1
+    assert "duplicate note id" in result["warnings"][0]
+    assert "b.md" in result["warnings"][0]
+    titles = {m.get("title") for m in store.metadatas["document"]}
+    assert titles == {"First"}

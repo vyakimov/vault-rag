@@ -69,6 +69,19 @@ class TestSynthesize:
         assert result["notes_used"] == ["a.md"]
         assert result["warnings"] == ["model cited unknown key S9"]
 
+    def test_duplicate_citation_keys_deduped(self, fake_provider):
+        fake_provider.chat_response = json.dumps(
+            {
+                "answer": "Alpha [S0][S0].",
+                "citations": ["S0", "S0", "S1"],
+                "confidence": "High",
+                "abstained": False,
+            }
+        )
+        result = synthesize(fake_provider, retrieval_output())
+        assert [c["key"] for c in result["citations"]] == ["S0", "S1"]
+        assert result["warnings"] == []
+
     def test_abstention_propagates(self, fake_provider):
         fake_provider.chat_response = json.dumps(
             {"answer": "", "citations": [], "confidence": "Low", "abstained": True}

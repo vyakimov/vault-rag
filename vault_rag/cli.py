@@ -17,7 +17,12 @@ SCHEMA_VERSION = 1
 
 
 def get_provider() -> OpenRouterClient:
-    return OpenRouterClient.from_env()
+    try:
+        return OpenRouterClient.from_env()
+    except ValueError as exc:
+        # Missing OPENROUTER_API_KEY should surface as provider_error, not
+        # internal_error.
+        raise OpenRouterError(str(exc)) from exc
 
 
 def get_store(chroma_path: str, collection: str, provider: Optional[OpenRouterClient] = None):
@@ -46,6 +51,7 @@ def _schema() -> Dict[str, Any]:
                     "deleted_notes": "int",
                     "unchanged": "int",
                     "total_entries": "int",
+                    "warnings": ["str"],
                 },
             },
             "retrieve": {
@@ -259,6 +265,12 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
         except (ValueError, json.JSONDecodeError) as exc:
             return failure("synthesize", "invalid_arguments", str(exc))
         query = args.query or str(retrieval_output.get("query", ""))
+        if not query.strip():
+            return failure(
+                "synthesize",
+                "invalid_arguments",
+                "--query is required: the retrieval file has no query",
+            )
     else:
         query = args.query
         if not query or not query.strip():
@@ -477,6 +489,8 @@ def main(argv: Optional[list] = None) -> int:
     handler = _HANDLERS[args.command]
     try:
         envelope = handler(args)
+    except OpenRouterError as exc:
+        envelope = failure(args.command, "provider_error", str(exc))
     except Exception as exc:  # noqa: BLE001 - top-level guard -> internal_error envelope
         envelope = failure(args.command, "internal_error", str(exc))
 

@@ -106,3 +106,26 @@ class TestSynthesizeFromRetrievalFile:
         assert envelope["action"] == "synthesize"
         assert "retrieval" in envelope["result"]
         assert envelope["result"]["retrieval"]["candidates"]
+
+    def test_replay_without_any_query_is_rejected(self, capsys, tmp_path, fake_provider, monkeypatch):
+        monkeypatch.setattr(cli, "get_provider", lambda: fake_provider)
+        retrieval_file = tmp_path / "r.json"
+        retrieval_file.write_text(json.dumps({"candidates": []}), encoding="utf-8")
+
+        code, envelope = run(capsys, ["synthesize", "--retrieval", str(retrieval_file)])
+        assert code == 1
+        assert envelope["ok"] is False
+        assert envelope["error"]["type"] == "invalid_arguments"
+
+
+class TestMissingApiKey:
+    def test_missing_key_maps_to_provider_error(self, capsys, tmp_path, tiny_vault, monkeypatch):
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        code, envelope = run(
+            capsys,
+            ["--chroma-path", str(tmp_path / "c"), "sync", "--root", str(tiny_vault)],
+        )
+        assert code == 1
+        assert envelope["ok"] is False
+        assert envelope["error"]["type"] == "provider_error"
+        assert "OPENROUTER_API_KEY" in envelope["error"]["message"]

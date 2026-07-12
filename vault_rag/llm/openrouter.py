@@ -66,8 +66,9 @@ class OpenRouterClient:
             headers["X-Title"] = self.app_title
         return headers
 
+    RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
+
     def _post(self, path: str, payload: Dict[str, Any], retries: int = 3) -> Dict[str, Any]:
-        last_error: Optional[Exception] = None
         url = f"{self.base_url}/{path.lstrip('/')}"
 
         for attempt in range(retries):
@@ -78,26 +79,26 @@ class OpenRouterClient:
                     headers=self._headers(),
                     timeout=self.timeout_seconds,
                 )
-                if response.status_code in {429, 500, 502, 503, 504} and attempt + 1 < retries:
-                    time.sleep(2**attempt)
-                    continue
-                response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as exc:
-                message = exc.response.text.strip() or str(exc)
-                if exc.response.status_code in {429, 500, 502, 503, 504} and attempt + 1 < retries:
-                    last_error = exc
-                    time.sleep(2**attempt)
-                    continue
-                raise OpenRouterError(f"OpenRouter request failed: {message}") from exc
             except httpx.HTTPError as exc:
-                last_error = exc
                 if attempt + 1 < retries:
                     time.sleep(2**attempt)
                     continue
                 raise OpenRouterError(f"OpenRouter request failed: {exc}") from exc
 
-        raise OpenRouterError(f"OpenRouter request failed: {last_error}")
+            if response.status_code in self.RETRYABLE_STATUSES and attempt + 1 < retries:
+                time.sleep(2**attempt)
+                continue
+            if response.status_code >= 400:
+                message = response.text.strip() or f"HTTP {response.status_code}"
+                raise OpenRouterError(f"OpenRouter request failed: {message}")
+            try:
+                return response.json()
+            except ValueError as exc:
+                raise OpenRouterError(
+                    "OpenRouter returned a non-JSON response"
+                ) from exc
+
+        raise OpenRouterError("OpenRouter request failed: retries exhausted")
 
     @staticmethod
     def _normalize_embedding(embedding: List[float]) -> List[float]:
@@ -113,11 +114,19 @@ class OpenRouterClient:
             payload = {"model": self.embedding_model, "input": chunk}
             response = self._post("/embeddings", payload)
             data = sorted(response.get("data", []), key=lambda item: item.get("index", 0))
-            embeddings.extend(
+            batch = [
                 self._normalize_embedding(item["embedding"])
                 for item in data
                 if "embedding" in item
-            )
+            ]
+            if len(batch) != len(chunk):
+                # A partial batch would silently misalign embeddings with the
+                # documents they are stored against.
+                raise OpenRouterError(
+                    f"Embedding response returned {len(batch)} embeddings "
+                    f"for {len(chunk)} inputs"
+                )
+            embeddings.extend(batch)
         return embeddings
 
     def rerank(

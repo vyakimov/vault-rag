@@ -2161,18 +2161,17 @@ dependencies = [
     { name = "httpx" },
     { name = "nltk" },
     { name = "pandas" },
-    { name = "pandas-stubs" },
-    { name = "pyright" },
     { name = "python-dotenv" },
     { name = "python-ulid" },
     { name = "pyyaml" },
     { name = "rank-bm25" },
-    { name = "rich" },
     { name = "streamlit" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "pandas-stubs" },
+    { name = "pyright" },
     { name = "pytest" },
 ]
 
@@ -2182,18 +2181,19 @@ requires-dist = [
     { name = "httpx", specifier = "==0.28.1" },
     { name = "nltk", specifier = "==3.9.1" },
     { name = "pandas", specifier = "==2.3.1" },
-    { name = "pandas-stubs" },
-    { name = "pyright" },
     { name = "python-dotenv" },
     { name = "python-ulid" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "rank-bm25" },
-    { name = "rich" },
     { name = "streamlit" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest" }]
+dev = [
+    { name = "pandas-stubs" },
+    { name = "pyright" },
+    { name = "pytest" },
+]
 
 [[package]]
 name = "watchdog"

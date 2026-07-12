@@ -33,10 +33,14 @@ class IndexStore:
         bm25_k1: Optional[float] = None,
         bm25_b: Optional[float] = None,
         provider: Optional[OpenRouterClient] = None,
+        allow_model_mismatch: bool = False,
     ):
         self.chroma_db_path = chroma_db_path
         self.collection_name = collection_name
         self.provider = provider or OpenRouterClient.from_env()
+        # True when the caller intends to reset the collection anyway (sync
+        # --reset); an embedding-model mismatch is then not an error.
+        self.allow_model_mismatch = allow_model_mismatch
         self.client = chromadb.PersistentClient(path=chroma_db_path)
         self.bm25_k1 = BM25_CONFIG["k1"] if bm25_k1 is None else bm25_k1
         self.bm25_b = BM25_CONFIG["b"] if bm25_b is None else bm25_b
@@ -63,21 +67,28 @@ class IndexStore:
         }
 
     def _load_or_create_collection(self):
+        # The mismatch check must stay outside the try: raising it inside would
+        # fall through to create_collection on an existing name and surface as
+        # a confusing "collection already exists" error instead.
         try:
             collection = self.client.get_collection(name=self.collection_name)
-            current_metadata = getattr(collection, "metadata", None) or {}
-            existing_model = current_metadata.get("embedding_model")
-            if existing_model and existing_model != self.provider.embedding_model:
-                raise ValueError(
-                    "Collection was built with a different embedding model. "
-                    "Reset the collection before rebuilding."
-                )
-            return collection
         except (ValueError, chromadb.errors.NotFoundError):
             return self.client.create_collection(
                 name=self.collection_name,
                 metadata=self._collection_metadata(),
             )
+        current_metadata = getattr(collection, "metadata", None) or {}
+        existing_model = current_metadata.get("embedding_model")
+        if (
+            existing_model
+            and existing_model != self.provider.embedding_model
+            and not self.allow_model_mismatch
+        ):
+            raise ValueError(
+                "Collection was built with a different embedding model. "
+                "Run `vault-rag sync --reset` to rebuild it."
+            )
+        return collection
 
     def _reset_collection(self) -> None:
         try:
@@ -184,11 +195,28 @@ class IndexStore:
 
     # -- sync -----------------------------------------------------------------
 
-    def sync(self, root: str, reset: bool = False) -> Dict[str, int]:
+    def sync(self, root: str, reset: bool = False) -> Dict[str, object]:
         if reset:
             self._reset_collection()
 
         notes = load_notes(root)
+        warnings: List[str] = []
+
+        # Two files sharing a frontmatter id would collide on entry ids; index
+        # the first (load_notes is path-sorted) and skip the rest.
+        seen_note_ids: Dict[str, str] = {}
+        deduped: List[Note] = []
+        for note in notes:
+            first_path = seen_note_ids.get(note.note_id)
+            if first_path is not None:
+                warnings.append(
+                    f"duplicate note id {note.note_id}: skipped {note.path} "
+                    f"(already used by {first_path})"
+                )
+                continue
+            seen_note_ids[note.note_id] = note.path
+            deduped.append(note)
+        notes = deduped
 
         existing = self.collection.get(include=["metadatas"])
         existing_ids = existing.get("ids") or []
@@ -197,7 +225,12 @@ class IndexStore:
         for entry_id, metadata in zip(existing_ids, existing_metas):
             note_id = str(metadata.get("note_id", ""))
             group = existing_by_note.setdefault(
-                note_id, {"ids": [], "content_hash": metadata.get("content_hash", "")}
+                note_id,
+                {
+                    "ids": [],
+                    "content_hash": metadata.get("content_hash", ""),
+                    "path": metadata.get("path", ""),
+                },
             )
             group["ids"].append(entry_id)  # type: ignore[union-attr]
 
@@ -212,7 +245,12 @@ class IndexStore:
             if group is None:
                 entries_to_add.extend(self._entries_for_note(note))
                 added_notes += 1
-            elif group.get("content_hash") != note.content_hash:
+            elif (
+                group.get("content_hash") != note.content_hash
+                or group.get("path") != note.path
+            ):
+                # Path change with identical content (a moved note) must also
+                # re-index, or path/folder/title metadata goes stale.
                 ids_to_delete.extend(group["ids"])  # type: ignore[arg-type]
                 entries_to_add.extend(self._entries_for_note(note))
                 updated_notes += 1
@@ -242,6 +280,7 @@ class IndexStore:
             "deleted_notes": deleted_notes,
             "unchanged": unchanged,
             "total_entries": self.collection.count(),
+            "warnings": warnings,
         }
 
     def _add_in_batches(

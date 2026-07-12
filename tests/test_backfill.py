@@ -176,3 +176,15 @@ def test_skips_reserved_dirs(tmp_path):
     report = run(tmp_path, apply=True)
     touched = {c["path"] for c in report["changes"]} | {m["path"] for m in report["manual_review"]}
     assert touched == {"keep.md"}
+
+
+def test_clamp_handles_naive_existing_created(tmp_path):
+    # Existing created is naive (no offset) and in the future; the mtime-based
+    # updated is offset-aware. The clamp comparison must not raise TypeError.
+    (tmp_path / "n.md").write_text(
+        "---\ncreated: 2030-01-01T00:00\n---\nbody\n", encoding="utf-8"
+    )
+    report = run(tmp_path, apply=False)
+    fields = changes_for(report, "n.md")
+    assert "created" not in fields  # existing value untouched
+    assert any("clamped" in w for w in fields["updated"]["warnings"])

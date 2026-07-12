@@ -117,6 +117,23 @@ class TestLoadNotes:
         notes = load_notes(str(tmp_path))
         assert [n.path for n in notes] == ["keep.md"]
 
+    def test_skips_frontmatter_ignore_tags(self, tmp_path: Path):
+        (tmp_path / "keep.md").write_text("plain body")
+        (tmp_path / "fm_secret.md").write_text(
+            "---\ntags: [secret]\n---\nno body tag here\n"
+        )
+        (tmp_path / "fm_hash_ignore.md").write_text(
+            "---\ntags: ['#ignore', other]\n---\nno body tag here\n"
+        )
+        notes = load_notes(str(tmp_path))
+        assert [n.path for n in notes] == ["keep.md"]
+
+    def test_skips_undecodable_file(self, tmp_path: Path):
+        (tmp_path / "keep.md").write_text("plain body")
+        (tmp_path / "broken.md").write_bytes(b"\xff\xfe not utf-8 \xff")
+        notes = load_notes(str(tmp_path))
+        assert [n.path for n in notes] == ["keep.md"]
+
     def test_skips_reserved_dirs(self, tmp_path: Path):
         (tmp_path / "keep.md").write_text("body")
         for reserved in (".trash", ".obsidian", "Templates"):

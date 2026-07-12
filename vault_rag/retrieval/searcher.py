@@ -212,7 +212,9 @@ class Searcher:
         top_keyword_scores = keyword_scores.nlargest(
             min(len(keyword_scores), candidate_pool_size)
         )
-        candidate_ids = list(
+        # Sorted so downstream stable sorts break score ties deterministically
+        # (set iteration order varies across processes).
+        candidate_ids = sorted(
             (set(semantic_scores.index) | set(top_keyword_scores.index)) & set(allowed_ids)
         )
         if not candidate_ids:
@@ -246,7 +248,10 @@ class Searcher:
                 fused["semantic_score"] * semantic_wt
                 + fused["keyword_score"] * (1.0 - semantic_wt)
             )
-            fused = fused.sort_values("fused_score", ascending=False)
+            fused = fused.sort_values("fused_score", ascending=False, kind="stable")
+
+        if fused.empty:
+            raise ValueError("No candidate documents available for the query.")
 
         # Rerank only in thorough mode; fast skips it even if a model is configured.
         rerank_ran = False
@@ -301,7 +306,7 @@ class Searcher:
             fused["recency_boost_factor"] = 1.0
             fused["boosted_score"] = fused["relevance_score"]
 
-        ordered = fused.sort_values("boosted_score", ascending=False)
+        ordered = fused.sort_values("boosted_score", ascending=False, kind="stable")
 
         # Assemble output rows, applying the mixed 3-sections-per-note cap.
         rows: List[Dict[str, object]] = []

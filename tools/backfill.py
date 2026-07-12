@@ -284,18 +284,16 @@ def build_report(root: Path, include_glob: str, apply: bool) -> Dict[str, Any]:
             if change is not None
         ]
 
-        # Clamp: updated must not predate created.
+        # Clamp: updated must not predate created. coerce_datetime attaches the
+        # local offset to naive values so aware/naive comparisons cannot raise.
         by_field = {c.field: c for c in note_changes}
         created_val = by_field["created"].value if "created" in by_field else record.fm.get("created")
         if "updated" in by_field and created_val:
-            try:
-                if datetime.fromisoformat(_to_iso(by_field["updated"].value)) < datetime.fromisoformat(
-                    _to_iso(str(created_val))
-                ):
-                    by_field["updated"].value = _as_str(created_val)
-                    by_field["updated"].warnings.append("updated predated created; clamped to created")
-            except ValueError:
-                pass
+            updated_dt = coerce_datetime(by_field["updated"].value)
+            created_dt = coerce_datetime(created_val)
+            if updated_dt is not None and created_dt is not None and updated_dt < created_dt:
+                by_field["updated"].value = _as_str(created_val)
+                by_field["updated"].warnings.append("updated predated created; clamped to created")
 
         if not note_changes:
             unchanged += 1
@@ -331,10 +329,6 @@ def build_report(root: Path, include_glob: str, apply: bool) -> Dict[str, Any]:
         "changes": changes,
         "manual_review": manual_review,
     }
-
-
-def _to_iso(value: str) -> str:
-    return value.replace("Z", "+00:00")
 
 
 def _as_str(value: Any) -> str:

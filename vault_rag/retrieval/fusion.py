@@ -45,8 +45,10 @@ def reciprocal_rank_fusion(
     sem_comp.name = "semantic_score"
     kw_comp.name = "keyword_score"
     fused.name = "fused_score"
+    # kind="stable" keeps tied scores in input-index order; the default
+    # quicksort makes tie order vary with the numpy version.
     return pd.concat([sem_comp, kw_comp, fused], axis=1).sort_values(
-        "fused_score", ascending=False
+        "fused_score", ascending=False, kind="stable"
     )
 
 
@@ -79,4 +81,4 @@ def zscore_sigmoid_fusion(
     fused = (sem_norm * weight + key_norm * (1.0 - weight)).astype(float)
     combined = pd.concat([sem_norm, key_norm, fused], axis=1)
     combined.columns = ["semantic_score", "keyword_score", "fused_score"]
-    return combined.sort_values("fused_score", ascending=False)
+    return combined.sort_values("fused_score", ascending=False, kind="stable")

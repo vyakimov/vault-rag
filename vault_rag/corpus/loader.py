@@ -44,6 +44,11 @@ def has_ignore_tag(body: str) -> bool:
     return bool(IGNORE_TAG_RE.search(body))
 
 
+def has_ignore_frontmatter_tag(tags: List[str]) -> bool:
+    """True when a frontmatter tag is `ignore`/`secret` (with or without `#`)."""
+    return any(tag.lstrip("#").lower() in IGNORE_TAGS for tag in tags)
+
+
 def resolve_note_date(path: Path, frontmatter: Dict[str, Any]) -> str:
     for key in ("date", "created"):
         resolved = coerce_datetime(frontmatter.get(key))
@@ -80,13 +85,18 @@ def load_notes(root: str) -> List[Note]:
         relative_path = path.relative_to(root_path)
         if _is_skipped(relative_path):
             continue
-        raw_text = path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            raw_text = path.read_text(encoding="utf-8", errors="strict")
+        except UnicodeDecodeError:
+            # Same policy as lint: skip files that are not valid UTF-8 instead
+            # of indexing silently mangled text.
+            continue
         frontmatter, body = split_frontmatter(raw_text)
-        if has_ignore_tag(body):
+        tags = normalize_tags(frontmatter.get("tags"))
+        if has_ignore_tag(body) or has_ignore_frontmatter_tag(tags):
             continue
         relative_posix = relative_path.as_posix()
         title = str(frontmatter.get("title") or path.stem)
-        tags = normalize_tags(frontmatter.get("tags"))
         note = Note(
             note_id=resolve_note_id(frontmatter, relative_posix),
             path=relative_posix,

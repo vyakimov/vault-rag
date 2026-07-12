@@ -156,7 +156,11 @@ def synthesize(
     warnings: List[str] = []
     citations: List[Dict[str, Any]] = []
     notes_used: List[str] = []
+    seen_keys: set = set()
     for key in parsed.get("citations", []) or []:
+        if str(key) in seen_keys:
+            continue
+        seen_keys.add(str(key))
         candidate = index_map.get(str(key))
         if candidate is None:
             warnings.append(f"model cited unknown key {key}")

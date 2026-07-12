@@ -17,7 +17,9 @@ by the `granularity` metadata field.
 - `uv run vault-rag schema`
   - Prints the machine-readable command + contract schema (`version: 1`).
 - `uv run vault-rag sync --root "./input/Vault 14" [--reset]`
-  - Incremental sync: adds new notes, re-embeds changed notes, deletes removed notes.
+  - Incremental sync: adds new notes, re-embeds changed or moved notes, deletes removed notes.
+    Notes sharing a duplicate frontmatter `id` are skipped after the first and reported in
+    the result's `warnings`.
   - `--reset` rebuilds the collection from scratch (needed once after an entry-shape change).
 - `uv run vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
   - Returns the retrieval output contract (candidates with score breakdown). Defaults: `fast`, `document`.
@@ -71,8 +73,8 @@ The `vault_rag` package is layered:
 1. `vault_rag/corpus/`
    - `frontmatter.py` — YAML frontmatter split, tag normalization, datetime coercion.
    - `identity.py` — note id resolution (frontmatter `id`/ULID, else path hash).
-   - `loader.py` — `load_notes(root)` → `Note` dataclasses (skips `#ignore`/`#secret` and
-     `.trash/`, `.obsidian/`, `Templates/`).
+   - `loader.py` — `load_notes(root)` → `Note` dataclasses (skips `#ignore`/`#secret` in the
+     body or frontmatter `tags`, non-UTF-8 files, and `.trash/`, `.obsidian/`, `Templates/`).
    - `chunker.py` — deterministic `split_sections` plus `document_text` / `section_text`.
 
 2. `vault_rag/index/`
