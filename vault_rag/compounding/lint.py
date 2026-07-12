@@ -113,8 +113,6 @@ def _sources_wikilinks(body: str) -> List[Tuple[str, int]]:
     for index, line in enumerate(lines, start=1):
         if line.strip().startswith("```"):
             in_fence = not in_fence
-            if collecting:
-                continue
             continue
         if in_fence:
             continue
@@ -159,6 +157,7 @@ def lint_vault(root: str) -> Dict[str, Any]:
         )
         notes.append(note)
 
+    notes_by_path = {note.path: note for note in notes}
     resolver = _Resolver(notes)
 
     findings: Dict[str, List[Dict[str, Any]]] = {
@@ -236,7 +235,7 @@ def lint_vault(root: str) -> Dict[str, Any]:
                     {"path": note.path, "warning": f"unresolvable source link {target}"}
                 )
                 continue
-            source = next((n for n in notes if n.path == resolved), None)
+            source = notes_by_path.get(resolved)
             if source is None or source.recency is None or note.recency is None:
                 continue
             if source.recency > note.recency:
