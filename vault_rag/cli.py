@@ -44,7 +44,11 @@ def _schema() -> Dict[str, Any]:
         "commands": {
             "schema": {"args": {}, "result": "this document"},
             "sync": {
-                "args": {"--root": "vault directory (required)", "--reset": "flag"},
+                "args": {
+                    "--root": "vault directory (required)",
+                    "--reset": "flag",
+                    "--dry-run": "flag",
+                },
                 "result": {
                     "added_notes": "int",
                     "updated_notes": "int",
@@ -52,6 +56,8 @@ def _schema() -> Dict[str, Any]:
                     "unchanged": "int",
                     "total_entries": "int",
                     "warnings": ["str"],
+                    "dry_run": "bool",
+                    "would_add/would_update/would_delete": ["str (dry-run only)"],
                 },
             },
             "stats": {
@@ -206,10 +212,18 @@ def cmd_sync(args: argparse.Namespace) -> Dict[str, Any]:
     root = args.root
     if not os.path.isdir(root):
         return failure("sync", "invalid_arguments", f"root directory not found: {root}")
+    if args.reset and args.dry_run:
+        return failure(
+            "sync", "invalid_arguments", "--reset cannot be combined with --dry-run"
+        )
     provider = get_provider()
     store = get_store(args.chroma_path, args.collection, provider)
-    result = store.sync(root, reset=args.reset)
-    return success("sync", result=result, meta={"root": root, "reset": args.reset})
+    result = store.sync(root, reset=args.reset, dry_run=args.dry_run)
+    return success(
+        "sync",
+        result=result,
+        meta={"root": root, "reset": args.reset, "dry_run": args.dry_run},
+    )
 
 
 def cmd_stats(args: argparse.Namespace) -> Dict[str, Any]:
@@ -464,6 +478,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_sync.add_argument("--root", required=True, help="Vault directory to index")
     p_sync.add_argument("--reset", action="store_true", help="Rebuild from scratch")
+    p_sync.add_argument("--dry-run", dest="dry_run", action="store_true")
 
     sub.add_parser("stats", parents=[common], help="Index statistics")
 

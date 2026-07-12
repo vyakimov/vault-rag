@@ -130,6 +130,20 @@ class TestInvalidArguments:
         assert envelope["ok"] is False
         assert envelope["error"]["type"] == "invalid_arguments"
 
+    def test_sync_reset_and_dry_run_are_incompatible(
+        self, capsys, tiny_vault, monkeypatch
+    ):
+        monkeypatch.setattr(
+            cli, "get_provider", lambda: (_ for _ in ()).throw(AssertionError())
+        )
+
+        code, envelope = run(
+            capsys, ["sync", "--root", str(tiny_vault), "--reset", "--dry-run"]
+        )
+
+        assert code == 1
+        assert envelope["error"]["type"] == "invalid_arguments"
+
 
 class TestSynthesizeFromRetrievalFile:
     def test_reads_prior_retrieval(self, capsys, tmp_path, fake_provider, monkeypatch):

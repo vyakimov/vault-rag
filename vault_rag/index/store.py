@@ -195,7 +195,9 @@ class IndexStore:
 
     # -- sync -----------------------------------------------------------------
 
-    def sync(self, root: str, reset: bool = False) -> Dict[str, object]:
+    def sync(
+        self, root: str, reset: bool = False, dry_run: bool = False
+    ) -> Dict[str, object]:
         if reset:
             self._reset_collection()
 
@@ -236,6 +238,9 @@ class IndexStore:
 
         ids_to_delete: List[str] = []
         entries_to_add: List[Tuple[str, str, Dict[str, object]]] = []
+        would_add: List[str] = []
+        would_update: List[str] = []
+        would_delete: List[str] = []
         added_notes = updated_notes = deleted_notes = unchanged = 0
 
         disk_note_ids = set()
@@ -244,6 +249,7 @@ class IndexStore:
             group = existing_by_note.get(note.note_id)
             if group is None:
                 entries_to_add.extend(self._entries_for_note(note))
+                would_add.append(note.path)
                 added_notes += 1
             elif (
                 group.get("content_hash") != note.content_hash
@@ -253,6 +259,7 @@ class IndexStore:
                 # re-index, or path/folder/title metadata goes stale.
                 ids_to_delete.extend(group["ids"])  # type: ignore[arg-type]
                 entries_to_add.extend(self._entries_for_note(note))
+                would_update.append(note.path)
                 updated_notes += 1
             else:
                 unchanged += 1
@@ -260,7 +267,22 @@ class IndexStore:
         for note_id, group in existing_by_note.items():
             if note_id not in disk_note_ids:
                 ids_to_delete.extend(group["ids"])  # type: ignore[arg-type]
+                would_delete.append(str(group.get("path") or note_id))
                 deleted_notes += 1
+
+        if dry_run:
+            return {
+                "added_notes": added_notes,
+                "updated_notes": updated_notes,
+                "deleted_notes": deleted_notes,
+                "unchanged": unchanged,
+                "total_entries": self.collection.count(),
+                "warnings": warnings,
+                "dry_run": True,
+                "would_add": sorted(would_add),
+                "would_update": sorted(would_update),
+                "would_delete": sorted(would_delete),
+            }
 
         if ids_to_delete:
             self.collection.delete(ids=ids_to_delete)
@@ -281,6 +303,7 @@ class IndexStore:
             "unchanged": unchanged,
             "total_entries": self.collection.count(),
             "warnings": warnings,
+            "dry_run": False,
         }
 
     def _add_in_batches(

@@ -143,3 +143,31 @@ def test_duplicate_frontmatter_ids_skip_later_note(tmp_path, fake_provider):
     assert "b.md" in result["warnings"][0]
     titles = {m.get("title") for m in store.metadatas["document"]}
     assert titles == {"First"}
+
+
+def test_dry_run_predicts_sync_without_mutation(
+    tmp_path, tiny_vault, fake_provider
+):
+    store = build_store(tmp_path / "chroma", fake_provider)
+    store.sync(str(tiny_vault))
+    initial_count = store.collection.count()
+    fake_provider.embed_calls.clear()
+
+    (tiny_vault / "note_plain.md").write_text("Changed beta body.\n", encoding="utf-8")
+    (tiny_vault / "note_code.md").unlink()
+    (tiny_vault / "note_new.md").write_text("A newly added note.\n", encoding="utf-8")
+
+    dry = store.sync(str(tiny_vault), dry_run=True)
+
+    assert dry["would_add"] == ["note_new.md"]
+    assert dry["would_update"] == ["note_plain.md"]
+    assert dry["would_delete"] == ["note_code.md"]
+    assert (dry["added_notes"], dry["updated_notes"], dry["deleted_notes"]) == (1, 1, 1)
+    assert dry["dry_run"] is True
+    assert fake_provider.embed_calls == []
+    assert store.collection.count() == initial_count
+
+    real = store.sync(str(tiny_vault))
+
+    assert (real["added_notes"], real["updated_notes"], real["deleted_notes"]) == (1, 1, 1)
+    assert real["dry_run"] is False
