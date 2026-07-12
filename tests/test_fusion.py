@@ -7,8 +7,8 @@ so any change to the fusion math is caught.
 
 from __future__ import annotations
 
-import pytest
 import pandas as pd
+import pytest
 
 from vault_rag.retrieval.fusion import (
     min_max_scale,

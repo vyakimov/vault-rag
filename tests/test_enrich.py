@@ -45,7 +45,7 @@ class TestPostprocessSafety:
         }
         result = postprocess(parsed, make_input(), NEIGHBORS)
 
-        inline_targets = {l["target"] for l in result["link_insertions"]}
+        inline_targets = {link["target"] for link in result["link_insertions"]}
         assert inline_targets == {"Rose"}
         assert result["link_insertions"][0]["occurs_at_line"] == 1
         assert result["link_insertions"][0]["target_path"] == "Research/Rose.md"
@@ -136,7 +136,7 @@ class TestUnparseable:
             "inline_links": ["bad", {"target": "Rose", "anchor_text": "Rose", "confidence": 0.95}],
         }
         result = postprocess(parsed, make_input(), NEIGHBORS)
-        assert {l["target"] for l in result["link_insertions"]} == {"Rose"}
+        assert {link["target"] for link in result["link_insertions"]} == {"Rose"}
         assert "aliases" not in result["frontmatter_patch"]
 
 

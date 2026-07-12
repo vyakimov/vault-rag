@@ -8,11 +8,10 @@ from datetime import datetime
 from typing import Dict
 
 import streamlit as st
+from streamlit_models import get_store_and_searcher
 
 from vault_rag.config import SEARCH_CONFIG
 from vault_rag.retrieval.evidence import build_retrieval_output
-from streamlit_models import get_store_and_searcher
-
 
 st.set_page_config(
     page_title="Vault RAG",

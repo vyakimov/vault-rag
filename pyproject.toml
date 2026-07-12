@@ -30,7 +30,18 @@ dev = [
   "pandas-stubs",
   "pyright",
   "pytest",
+  "ruff",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["vault_rag"]

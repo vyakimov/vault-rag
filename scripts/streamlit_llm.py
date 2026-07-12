@@ -4,11 +4,10 @@ import re
 from typing import Dict
 
 import streamlit as st
+from streamlit_models import get_openrouter_client
 
 from vault_rag.index.reader import DatabaseReader
 from vault_rag.synthesis.answer import synthesize
-from streamlit_models import get_openrouter_client
-
 
 client = get_openrouter_client()
 
