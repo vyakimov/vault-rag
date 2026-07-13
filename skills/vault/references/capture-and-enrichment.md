@@ -12,7 +12,8 @@ on every subsequent edit, so obsctl leaves `updated` alone (`manage_updated: fal
 
 Contract fields (per `plans/phase-0-results.md`):
 - `id` — a 26-char ULID (Crockford base32), immutable.
-- `created` / `updated` — ISO 8601, **offset-aware local** (e.g. `2026-07-07T14:30:00+02:00`).
+- `created` / `updated` — ISO 8601, **offset-aware**. The format follows `config.yaml`
+  `timestamps.policy`: `offset_local` (default, e.g. `2026-07-07T14:30:00+02:00`) or `utc_z`.
 
 Mint them at capture (python-ulid ships with vault-rag):
 
@@ -34,9 +35,9 @@ offer enrichment.
 
 ## Enrich → apply (fixed order)
 
-1. **Plan** (read-only, no mutations):
+1. **Plan** (read-only, no mutations; `--root` comes from `config.yaml` unless overridden):
    ```bash
-   vault-rag enrich --root <vault> --note "Inbox/<name>.md" --intent "..." --source-type "..." > plan.json
+   vault-rag enrich --note "Inbox/<name>.md" --intent "..." --source-type "..." > plan.json
    ```
    Show the user the plan summary: title, `frontmatter_patch`, links, `suggested_path`, confidence.
    If `confidence: low`, show the warnings and apply **nothing** unless the user insists.
@@ -55,9 +56,9 @@ offer enrichment.
    ```
    `suggested_path` is advisory. The destination folder must already exist.
 
-4. **Re-index** when done:
+4. **Re-index** when done (incremental — only the touched notes are re-embedded):
    ```bash
-   vault-rag sync --root <vault>
+   vault-rag sync
    ```
 
 ## Safety reminders

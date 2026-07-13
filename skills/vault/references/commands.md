@@ -7,22 +7,50 @@ version.
 
 ## vault-rag (read/query/plan; run via `uv run vault-rag`)
 
+`--root` defaults to `config.yaml` `vault.root` everywhere; pass it only when that is unset.
+
 ```
 vault-rag schema
-vault-rag sync [--root <dir>] [--reset]      # --root defaults to config.yaml `vault.root`
-vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]
+vault-rag sync [--root <dir>] [--reset | --dry-run]
+vault-rag stats                              # index statistics; no API key needed
+vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10] [FILTERS]
 vault-rag synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json]
-                     [--n-context 8] [--save --root <dir> [--save-dir Distilled]]
-vault-rag lint --root <dir> [--format json|text] [--fix] [--fix-timestamps]
-vault-rag enrich --root <dir> (--note <vault-rel-path> | --stdin)
+                     [--n-context 8] [--save [--root <dir>] [--save-dir Distilled]] [FILTERS]
+vault-rag lint [--root <dir>] [--format json|text] [--fix] [--fix-timestamps]
+vault-rag enrich (--note <vault-rel-path> | --stdin) [--root <dir>]
                  [--intent "..."] [--source-type transcript|web|pdf|manual] [--source-url ...] [--title ...]
+
+FILTERS (retrieve & synthesize):
+  [--folder <prefix>] [--tag <t>]... [--type <note_type>] [--since <ISO>] [--until <ISO>]
+  [--must-include <term>]...
 ```
 
-- `retrieve` defaults: `fast` / `document`. `synthesize` defaults: `thorough` / `mixed`.
+- `retrieve` defaults: `fast` / `document`. `synthesize` defaults: `thorough` / `mixed`. `mixed`
+  searches the section pool with a 3-sections-per-note cap; it does not mix in document entries.
+- Filter semantics: `--folder` matches the folder or any subfolder; `--tag` is repeatable and
+  every given tag must be present (case-insensitive); `--type` matches frontmatter `type` exactly;
+  `--since`/`--until` compare against `updated` (falling back to `date`) — entries without either
+  are excluded; `--must-include` is repeatable and each term must appear as a whole word
+  (punctuation-insensitive). Filters that match nothing → `not_found`; a malformed date →
+  `invalid_arguments`.
+- `sync` is incremental (only changed content is re-embedded). `--dry-run` returns
+  `would_add`/`would_update`/`would_delete` path lists without touching the index; it cannot be
+  combined with `--reset`.
+- `stats` result = `{total_documents, total_entries, section_entries, unique_folders, unique_tags,
+  dated_notes, embedding_model}`; fails with `index_empty` before the first sync.
 - `retrieve` result = candidate list, each with `note_id`, `path`, `title`, `heading`, `scores`,
   and a deterministic `why`. `reranker` score is `null` in `fast` mode.
 - `synthesize` result = `{question, answer, confidence, abstained, citations[], notes_used[],
-  warnings[], retrieval}`. `--save` adds `saved` / `saved_path`.
+  warnings[], retrieval}`. `warnings[]` may include "N sentence(s) lack citations". `--save` adds
+  `saved` / `saved_path`; it refuses (with a warning, `saved: false`) abstained, low-confidence,
+  or citation-less answers and never overwrites an existing note. `--save` cannot be combined
+  with `--retrieval` (replay).
+- `lint` checks: `missing_frontmatter_fields`, `invalid_timestamps`, `duplicate_ids`,
+  `duplicate_titles`, `broken_wikilinks`, `dangling_targets` (aggregated, ranked by link count),
+  `empty_notes` (ranked by inbound links), `conflict_copies` (`Note 1.md` beside `Note.md`),
+  `orphans`, `stale_distilled`. `--fix` writes only *missing* `id`/`created`/`updated` (never
+  edits a value); `--fix-timestamps` rewrites *naive* timestamps as offset-aware. Timestamp
+  format follows `config.yaml` `timestamps.policy`.
 - `enrich` result = an enrichment plan (title, `frontmatter_patch`, `link_insertions`,
   `related_candidates`, `suggested_path`, `confidence`, `warnings`). **enrich never mutates** —
   feed its output to obsctl.
