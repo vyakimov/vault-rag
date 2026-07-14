@@ -44,7 +44,8 @@ uv run vault-rag lint --format text
 
 `vault-rag schema` prints the full machine-readable command and contract schema. All output is
 `{"ok": true, "action", "result", "meta"}` on success and `{"ok": false, "action", "error"}` on
-failure (exit 1) — **check `ok`, not the exit code.**
+failure (exit 1) — **check `ok`, not the exit code.** Every failure is that envelope, including
+bad flags and unknown commands — argparse usage text never reaches stdout.
 
 There is also a Streamlit UI:
 
@@ -75,6 +76,10 @@ Safety properties, enforced in code:
 
 - **Every mutating command takes `--dry-run`**: it computes and returns exactly what would change
   (`changed`, diffs) with `meta.dry_run: true` and makes no backend mutation calls.
+- **Paths cannot escape the vault**: every path argument (`--path`, `--to`, `--save-dir`, …) must
+  be a clean vault-relative POSIX path — absolute paths, backslashes and `.`/`..` segments are
+  refused before the backend is invoked, and link targets must be plain note names (no `[[`,
+  `]]` or newlines).
 - **`id` and `created` are immutable** once set — a patch touching them fails with
   `contract_violation`. They may only be set when absent (i.e. at `create-note`).
 - **Empty optional fields** (`""`, `[]`, `null`) in a patch are refused.
@@ -97,7 +102,13 @@ applies an exponential recency boost.
   section pool with a cap of 3 sections per note.
 
 Synthesis feeds the top candidates to a chat model under a strict contract: cite every claim, or
-abstain. An answer that cites nothing is treated as an abstention.
+abstain. An answer that cites nothing is treated as an abstention, and malformed model output
+fails closed — an unparseable verdict abstains rather than presenting an ungrounded answer.
+
+`sync` is failure-safe: existing index entries are deleted only after every new embedding has
+been computed and validated, so a transient provider error leaves the current index usable and
+the next sync retries cleanly. Provider responses are strictly validated (indexes, dimensions,
+finite values) — a malformed response is a `provider_error`, never a silently misaligned index.
 
 ## Vault health — `lint`
 

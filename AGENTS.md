@@ -31,6 +31,8 @@ by the `granularity` metadata field.
   - Incremental sync: adds new notes, re-embeds changed or moved notes, deletes removed notes.
     Notes sharing a duplicate frontmatter `id` are skipped after the first and reported in
     the result's `warnings`.
+  - Failure-safe ordering: old entries are deleted only after all new embeddings have been
+    computed and validated, so a provider failure mid-sync leaves the existing index usable.
   - `--reset` rebuilds the collection from scratch (needed once after an entry-shape change).
 - `uv run vault-rag stats` — index statistics (no API key needed).
 - `uv run vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
@@ -41,8 +43,9 @@ by the `granularity` metadata field.
   - Retrieves (defaults `thorough`/`mixed`) then synthesizes a cited answer. `--retrieval` reuses a
     prior `retrieve` envelope/contract and skips retrieval. Abstains when the notes lack the answer.
   - `--save` persists a high-quality answer as a create-only **distilled note** (`type: distilled`)
-    under `<root>/<save-dir>`. Skips (with a warning) when the answer abstained, is low-confidence,
-    has no citations, or the target exists. Distilled notes are regenerable pointers to their
+    under `<root>/<save-dir>`. `--save-dir` must be a vault-relative path resolving inside the
+    root. Skips (with a warning) when the answer abstained, is low-confidence, is empty, has no
+    citations, or the target exists. Distilled notes are regenerable pointers to their
     sources — raw notes always win on conflict. Run `vault-rag sync` afterward to index it.
 - `uv run vault-rag lint --root <dir> [--format json|text] [--fix] [--fix-timestamps]`
   - Read-only corpus health report (no LLM or index needed): missing frontmatter fields,
@@ -62,7 +65,10 @@ by the `granularity` metadata field.
     frontmatter patch (`type`/`aliases`/`source_type`/`source_url` only), inline links, related
     candidates, and placement — as JSON. It **never mutates** files or the index; apply a plan
     with the mutation commands below. Only links to retrieved neighbors are proposed; the LLM
-    output is validated in code (confidence gating, anchor resolution, existing-type/link guards).
+    output is validated in code (confidence gating, anchor resolution, existing-type/link guards,
+    `source_type` restricted to the four allowed values, unsafe titles and non-numeric
+    confidences dropped with warnings). `--note` must be a vault-relative `.md` path resolving
+    inside `--root`.
 - **Note mutations** — `create-note`, `read-note`, `merge-frontmatter`, `add-links`,
   `insert-related`, `move-note`, `rename-note`, `open-note` (all `uv run vault-rag <command>`).
   - Executed through the official Obsidian CLI; **the Obsidian app must be running** (macOS only).
@@ -76,6 +82,10 @@ by the `granularity` metadata field.
     idempotent. `updated` is left to the modified-date plugin unless
     `obsidian.manage_updated: true`. Timestamps are written untyped, following
     `timestamps.policy`.
+  - Path arguments (`--path`, `--to`, `--name`) are validated as clean vault-relative POSIX
+    paths — absolute paths, backslashes and `.`/`..` segments are `invalid_arguments` before the
+    backend is invoked; link targets must be plain note names (no `[[`/`]]`/newlines). Every
+    envelope carries `meta.backend: "obsidian-cli"`.
 - `uv run streamlit run scripts/streamlit_app.py`
   - Streamlit UI: Retrieve (mode + granularity selectors), Synthesize, Notes browser.
 - `uv run pytest`
@@ -83,10 +93,13 @@ by the `granularity` metadata field.
 
 All CLI output is a single JSON envelope on stdout: `{"ok": bool, "action", "result", "meta"}` on
 success, `{"ok": false, "action", "error": {"type", "message", "details"}}` on failure (exit 1).
+This holds for *every* failure: argparse errors (bad flags, missing/unknown commands) are
+converted to `invalid_arguments` envelopes rather than printing usage text.
 Error types: `invalid_arguments`, `index_empty`, `provider_error`, `not_found`, `internal_error`,
 `obsidian_not_running`, `backend_error`, `already_exists`, `ambiguous_target`,
 `contract_violation`. The schema (`vault-rag schema`) is `version: 2` — the version where the
-mutation commands were merged in.
+mutation commands were merged in. In the schema, `mutates_state` is always a boolean ("can this
+command write?"); the optional `mutates` string qualifies what and when.
 
 ## Environment
 
@@ -132,7 +145,8 @@ The `vault_rag` package is layered:
 
 4. `vault_rag/synthesis/`
    - `answer.py` — `synthesize()` turns a retrieval contract into a cited answer with abstention;
-     robust JSON parsing / truncation repair.
+     robust JSON parsing / truncation repair. Malformed model output fails closed: a non-boolean
+     `abstained` or non-string `answer` is treated as an abstention, never presented as grounded.
 
 5. `vault_rag/compounding/`
    - `distill.py` — `save_distilled_note()` for `synthesize --save`.
@@ -147,7 +161,9 @@ The `vault_rag` package is layered:
      untyped frontmatter parser on purpose (the YAML-typed `corpus/frontmatter.py` would not
      round-trip values faithfully).
 
-7. `vault_rag/llm/openrouter.py` — embeddings, rerank, and chat via OpenRouter.
+7. `vault_rag/llm/openrouter.py` — embeddings, rerank, and chat via OpenRouter. Responses are
+   strictly validated (index coverage, duplicate detection, dimensions, finite values); anything
+   malformed raises `OpenRouterError` (`provider_error`) instead of misaligning the index.
 
 8. `vault_rag/cli.py` + `vault_rag/envelope.py` — the JSON CLI, envelope helpers, and `CliError`.
 
@@ -174,6 +190,9 @@ All of these are configurable in `config.yaml`; the values below are the default
 ## Development Notes
 
 - Intra-package imports are absolute (`from vault_rag.corpus import loader`); no import fallbacks.
+- `vault_rag/utils.py::validate_vault_relative_path` is the single gate for user-supplied vault
+  paths (mutation `--path`/`--to`, `--save-dir`, `enrich --note`) — route any new path argument
+  through it rather than validating ad hoc.
 - Metadata stored per entry: `note_id`, `granularity`, `title`, `path`, `folder`, `tags`, `date`,
   `created`, `updated`, `note_type`, `content_hash`, `heading`, `line_start`, `line_end`, `source`.
 - Retrieval/synthesis JSON contracts are stable; downstream tooling depends on them (see
