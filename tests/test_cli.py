@@ -25,6 +25,30 @@ class TestSchema:
         assert "create-note" in envelope["result"]["commands"]
         assert "contract_violation" in envelope["result"]["error_types"]
 
+    def test_schema_parser_and_handlers_stay_in_sync(self, capsys):
+        """The published schema, the argparse surface, and the dispatch tables
+        must all name the same commands — drift here desyncs the contract."""
+        import argparse
+
+        from vault_rag.obsidian import notes
+
+        code, envelope = run(capsys, ["schema"])
+        schema_commands = set(envelope["result"]["commands"])
+
+        assert schema_commands == set(cli._HANDLERS) | set(notes.HANDLERS)
+
+        sub_action = next(
+            action for action in cli.build_parser()._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        assert set(sub_action.choices) == schema_commands
+
+    def test_mutates_state_is_always_boolean(self, capsys):
+        """Machine-readable field: callers must be able to branch on it."""
+        code, envelope = run(capsys, ["schema"])
+        for name, command in envelope["result"]["commands"].items():
+            assert isinstance(command["mutates_state"], bool), name
+
 
 class TestEnvelopeShape:
     def test_success_envelope_keys(self, capsys, tmp_path, tiny_vault, fake_provider, monkeypatch):

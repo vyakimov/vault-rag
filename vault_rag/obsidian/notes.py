@@ -17,6 +17,8 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 from vault_rag.compounding.backfill_core import now_timestamp
+from vault_rag.compounding.lint import WIKILINK_RE
+from vault_rag.corpus.chunker import HEADING_RE
 from vault_rag.envelope import CliError, success
 from vault_rag.obsidian import backend
 
@@ -190,7 +192,7 @@ def cmd_create_note(args: argparse.Namespace) -> Dict[str, Any]:
 
     if args.dry_run:
         return success("create-note", {"changed": True, "path": path, "text": full_text},
-                       {"dry_run": True, "backend": "obsidian-cli"})
+                       {"dry_run": True})
 
     out = backend.run(["create", f"path={path}", f"content={backend.escape_for_backend(full_text)}"])
     match = re.search(r"Created:\s*(.+)$", out, re.MULTILINE)
@@ -198,8 +200,7 @@ def cmd_create_note(args: argparse.Namespace) -> Dict[str, Any]:
     if actual != path:
         raise CliError("backend_error", "backend created a different path",
                        {"requested": path, "actual": actual})
-    return success("create-note", {"changed": True, "path": path},
-                   {"dry_run": False, "backend": "obsidian-cli"})
+    return success("create-note", {"changed": True, "path": path}, {"dry_run": False})
 
 
 def cmd_read_note(args: argparse.Namespace) -> Dict[str, Any]:
@@ -217,7 +218,7 @@ def cmd_read_note(args: argparse.Namespace) -> Dict[str, Any]:
         result["raw"] = raw
     if warnings:
         result["warnings"] = warnings
-    return success("read-note", result, {"backend": "obsidian-cli"})
+    return success("read-note", result)
 
 
 def cmd_merge_frontmatter(args: argparse.Namespace) -> Dict[str, Any]:
@@ -234,7 +235,7 @@ def cmd_merge_frontmatter(args: argparse.Namespace) -> Dict[str, Any]:
     fields_touched: List[str] = []
     skipped: Dict[str, str] = {}
     scalar_sets: List[Tuple[str, str]] = []
-    list_sets: List[Tuple[str, List[str]]] = []
+    list_sets: List[Tuple[str, List[Any]]] = []
     diffs: Dict[str, Any] = {}
 
     for key, value in patch.items():
@@ -248,7 +249,7 @@ def cmd_merge_frontmatter(args: argparse.Namespace) -> Dict[str, Any]:
             existing = current.get("aliases") or []
             if isinstance(existing, str):
                 existing = [existing]
-            new_value = list(existing)
+            new_value: List[Any] = list(existing)
             for item in (value if isinstance(value, list) else [value]):
                 if item not in new_value:
                     new_value.append(item)
@@ -280,15 +281,22 @@ def cmd_merge_frontmatter(args: argparse.Namespace) -> Dict[str, Any]:
     if args.dry_run:
         result = {"changed": changed, "fields_touched": fields_touched, "skipped": skipped, "diffs": diffs}
         _bump_updated_if_managed(args.path, changed, True, result)
-        return success("merge-frontmatter", result, {"dry_run": True, "backend": "obsidian-cli"})
+        return success("merge-frontmatter", result, {"dry_run": True})
 
+    # Scalars go through property:set on purpose — it writes untyped values,
+    # which is what keeps offset-aware timestamps round-tripping verbatim.
     for key, value in scalar_sets:
         backend.run(["property:set", f"path={args.path}", f"name={key}", f"value={value}"])
-    for key, value in list_sets:
+    # All list fields ride one eval: each processFrontMatter call is a full
+    # round-trip to the Obsidian app.
+    if list_sets:
+        assignments = " ".join(
+            f"fm[{json.dumps(key)}] = {json.dumps(value)};" for key, value in list_sets
+        )
         code = (
             "(async () => { const f = app.vault.getFileByPath(" + json.dumps(args.path) + "); "
-            "if (!f) return 'NOTFOUND'; await app.fileManager.processFrontMatter(f, fm => { fm["
-            + json.dumps(key) + "] = " + json.dumps(value) + "; }); return 'OK'; })()"
+            "if (!f) return 'NOTFOUND'; await app.fileManager.processFrontMatter(f, fm => { "
+            + assignments + " }); return 'OK'; })()"
         )
         out = backend.run(["eval", f"code={code}"])
         if "NOTFOUND" in out:
@@ -296,7 +304,7 @@ def cmd_merge_frontmatter(args: argparse.Namespace) -> Dict[str, Any]:
 
     result = {"changed": changed, "fields_touched": fields_touched, "skipped": skipped}
     _bump_updated_if_managed(args.path, changed, False, result)
-    return success("merge-frontmatter", result, {"dry_run": False, "backend": "obsidian-cli"})
+    return success("merge-frontmatter", result, {"dry_run": False})
 
 
 def cmd_add_links(args: argparse.Namespace) -> Dict[str, Any]:
@@ -346,12 +354,12 @@ def cmd_add_links(args: argparse.Namespace) -> Dict[str, Any]:
     result: Dict[str, Any] = {"changed": changed, "path": args.path, "links": outcomes}
     if args.dry_run:
         _bump_updated_if_managed(args.path, changed, True, result)
-        return success("add-links", result, {"dry_run": True, "backend": "obsidian-cli"})
+        return success("add-links", result, {"dry_run": True})
 
     if changed:
         backend.write_body(args.path, prefix + "\n".join(body_lines))
     _bump_updated_if_managed(args.path, changed, False, result)
-    return success("add-links", result, {"dry_run": False, "backend": "obsidian-cli"})
+    return success("add-links", result, {"dry_run": False})
 
 
 def cmd_insert_related(args: argparse.Namespace) -> Dict[str, Any]:
@@ -369,7 +377,9 @@ def cmd_insert_related(args: argparse.Namespace) -> Dict[str, Any]:
 
     related_indices = [
         i for i, line in enumerate(lines)
-        if i not in fenced and re.match(r"^#{1,6}\s+related\s*$", line.strip(), re.IGNORECASE)
+        if i not in fenced
+        and (heading := HEADING_RE.match(line.strip()))
+        and heading.group(2).strip().lower() == "related"
     ]
     if len(related_indices) > 1:
         raise CliError("ambiguous_target", "multiple '## Related' headings found")
@@ -378,9 +388,10 @@ def cmd_insert_related(args: argparse.Namespace) -> Dict[str, Any]:
     if related_indices:
         start = related_indices[0] + 1
         for line in lines[start:]:
-            if re.match(r"^#{1,6}\s+", line.strip()):
+            if HEADING_RE.match(line.strip()):
                 break
-            match = re.match(r"^\s*-\s*\[\[([^\]|#]+)", line)
+            bullet = re.match(r"^\s*-\s*(.*)$", line)
+            match = WIKILINK_RE.match(bullet.group(1)) if bullet else None
             if match:
                 existing_targets_lower.add(match.group(1).strip().lower())
 
@@ -398,12 +409,12 @@ def cmd_insert_related(args: argparse.Namespace) -> Dict[str, Any]:
     result: Dict[str, Any] = {"changed": changed, "path": args.path, "added": added, "already_present": already_present}
 
     if not changed:
-        return success("insert-related", result, {"dry_run": args.dry_run, "backend": "obsidian-cli"})
+        return success("insert-related", result, {"dry_run": args.dry_run})
 
     new_bullets = [f"- [[{t}]]" for t in added]
     if related_indices:
         insert_at = related_indices[0] + 1
-        while insert_at < len(lines) and lines[insert_at].strip() and not re.match(r"^#{1,6}\s+", lines[insert_at].strip()) and lines[insert_at].strip().startswith("-"):
+        while insert_at < len(lines) and lines[insert_at].strip() and not HEADING_RE.match(lines[insert_at].strip()) and lines[insert_at].strip().startswith("-"):
             insert_at += 1
         new_lines = lines[:insert_at] + new_bullets + lines[insert_at:]
         new_body = "\n".join(new_lines)
@@ -413,11 +424,11 @@ def cmd_insert_related(args: argparse.Namespace) -> Dict[str, Any]:
 
     if args.dry_run:
         _bump_updated_if_managed(args.path, changed, True, result)
-        return success("insert-related", result, {"dry_run": True, "backend": "obsidian-cli"})
+        return success("insert-related", result, {"dry_run": True})
 
     backend.write_body(args.path, prefix + new_body)
     _bump_updated_if_managed(args.path, changed, False, result)
-    return success("insert-related", result, {"dry_run": False, "backend": "obsidian-cli"})
+    return success("insert-related", result, {"dry_run": False})
 
 
 def _parse_destination(out: str, label: str, fallback: str) -> str:
@@ -431,45 +442,42 @@ def _parse_destination(out: str, label: str, fallback: str) -> str:
     return tail
 
 
+def _relocate(action: str, path: str, dest: str, backend_args: List[str],
+              label: str, dry_run: bool) -> Dict[str, Any]:
+    """Shared move/rename scaffolding: guards, dry-run, backend call, destination parse."""
+    if not backend.note_exists(path):
+        raise CliError("not_found", f"note not found: {path}")
+    if backend.note_exists(dest):
+        raise CliError("already_exists", f"destination already exists: {dest}")
+    if dry_run:
+        return success(action, {"changed": True, "path_before": path, "path_after": dest},
+                       {"dry_run": True})
+    out = backend.run(backend_args)
+    after = _parse_destination(out, label, dest)
+    return success(action,
+                   {"changed": True, "path_before": path, "path_after": after, "links_updated_by": "obsidian"},
+                   {"dry_run": False})
+
+
 def cmd_move_note(args: argparse.Namespace) -> Dict[str, Any]:
-    if not backend.note_exists(args.path):
-        raise CliError("not_found", f"note not found: {args.path}")
     filename = args.path.rsplit("/", 1)[-1]
     to = args.to.rstrip("/")
     dest = f"{to}/{filename}" if to else filename
-    if backend.note_exists(dest):
-        raise CliError("already_exists", f"destination already exists: {dest}")
-    if args.dry_run:
-        return success("move-note", {"changed": True, "path_before": args.path, "path_after": dest},
-                       {"dry_run": True, "backend": "obsidian-cli"})
-    out = backend.run(["move", f"path={args.path}", f"to={args.to}"])
-    after = _parse_destination(out, "Moved", dest)
-    return success("move-note",
-                   {"changed": True, "path_before": args.path, "path_after": after, "links_updated_by": "obsidian"},
-                   {"dry_run": False, "backend": "obsidian-cli"})
+    return _relocate("move-note", args.path, dest,
+                     ["move", f"path={args.path}", f"to={args.to}"], "Moved", args.dry_run)
 
 
 def cmd_rename_note(args: argparse.Namespace) -> Dict[str, Any]:
-    if not backend.note_exists(args.path):
-        raise CliError("not_found", f"note not found: {args.path}")
     folder = args.path.rsplit("/", 1)[0] if "/" in args.path else ""
     new_name = args.name if args.name.endswith(".md") else f"{args.name}.md"
     dest = f"{folder}/{new_name}" if folder else new_name
-    if backend.note_exists(dest):
-        raise CliError("already_exists", f"destination already exists: {dest}")
-    if args.dry_run:
-        return success("rename-note", {"changed": True, "path_before": args.path, "path_after": dest},
-                       {"dry_run": True, "backend": "obsidian-cli"})
-    out = backend.run(["rename", f"path={args.path}", f"name={args.name}"])
-    after = _parse_destination(out, "Renamed", dest)
-    return success("rename-note",
-                   {"changed": True, "path_before": args.path, "path_after": after, "links_updated_by": "obsidian"},
-                   {"dry_run": False, "backend": "obsidian-cli"})
+    return _relocate("rename-note", args.path, dest,
+                     ["rename", f"path={args.path}", f"name={args.name}"], "Renamed", args.dry_run)
 
 
 def cmd_open_note(args: argparse.Namespace) -> Dict[str, Any]:
     backend.run(["open", f"path={args.path}"])
-    return success("open-note", {"opened": True, "path": args.path}, {"backend": "obsidian-cli"})
+    return success("open-note", {"opened": True, "path": args.path})
 
 
 HANDLERS = {

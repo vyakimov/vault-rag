@@ -11,7 +11,25 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from vault_rag import settings
+
 EMBED_DIM = 16
+
+
+@pytest.fixture
+def isolated_config(tmp_path: Path, monkeypatch):
+    """Point settings at a temp config.yaml and reset the cache around the test."""
+    monkeypatch.setenv("VAULT_RAG_CONFIG", str(tmp_path / "config.yaml"))
+    settings.reset()
+    yield tmp_path
+    monkeypatch.delenv("VAULT_RAG_CONFIG", raising=False)
+    settings.reset()
+
+
+def write_config(tmp_path: Path, text: str) -> None:
+    """Write config.yaml and invalidate the cache — parsing happens on next read."""
+    (tmp_path / "config.yaml").write_text(text, encoding="utf-8")
+    settings.reset()
 
 
 class FakeProvider:

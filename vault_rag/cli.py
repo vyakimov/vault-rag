@@ -50,8 +50,11 @@ def _schema() -> Dict[str, Any]:
         "version": SCHEMA_VERSION,
         "commands": {
             "schema": {"args": {}, "result": "this document", "mutates_state": False},
+            # mutates_state is always a boolean ("can this command write?");
+            # the optional `mutates` string says what and when.
             "sync": {
-                "mutates_state": "the index (never the vault)",
+                "mutates_state": True,
+                "mutates": "the index, never the vault",
                 "args": {
                     "--root": "vault directory (required unless config.yaml sets vault.root)",
                     "--reset": "flag",
@@ -93,7 +96,8 @@ def _schema() -> Dict[str, Any]:
                 "result": "retrieval_output",
             },
             "synthesize": {
-                "mutates_state": "only with --save (writes one new distilled note)",
+                "mutates_state": True,
+                "mutates": "the vault, only with --save (writes one new distilled note)",
                 "args": {
                     "--query": "str",
                     "--mode": "fast|thorough (default thorough)",
@@ -108,7 +112,8 @@ def _schema() -> Dict[str, Any]:
                 "result": "synthesis_output (with embedded retrieval; +saved/saved_path when --save)",
             },
             "lint": {
-                "mutates_state": "only with --fix/--fix-timestamps",
+                "mutates_state": True,
+                "mutates": "the vault, only with --fix/--fix-timestamps",
                 "args": {
                     "--root": "vault directory (required unless config.yaml sets vault.root)",
                     "--format": "json|text (default json)",
@@ -672,24 +677,24 @@ def cmd_lint(args: argparse.Namespace) -> Dict[str, Any]:
     return success("lint", result=report)
 
 
-def _make_obsidian_handler(action: str):
+def _obsidian_handler(args: argparse.Namespace) -> Dict[str, Any]:
     """Route a note-mutation subcommand to vault_rag.obsidian with the
-    configured connection facts (CLI flags override config.yaml)."""
+    configured connection facts (CLI flags override config.yaml).
 
-    def handler(args: argparse.Namespace) -> Dict[str, Any]:
-        from vault_rag.obsidian import backend, notes
+    Imported lazily so the query commands never load the mutation stack."""
+    from vault_rag.obsidian import backend, notes
 
-        backend.configure(
-            binary=args.binary or settings.obsidian_binary(),
-            vault=args.vault or settings.obsidian_vault(),
-            manage_updated=settings.obsidian_manage_updated(),
-        )
-        t0 = time.monotonic()
-        envelope = notes.HANDLERS[action](args)
-        envelope.setdefault("meta", {})["timing_ms"] = round((time.monotonic() - t0) * 1000)
-        return envelope
-
-    return handler
+    backend.configure(
+        binary=args.binary or settings.obsidian_binary(),
+        vault=args.vault or settings.obsidian_vault(),
+        manage_updated=settings.obsidian_manage_updated(),
+    )
+    t0 = time.monotonic()
+    envelope = notes.HANDLERS[args.command](args)
+    meta = envelope.setdefault("meta", {})
+    meta["backend"] = "obsidian-cli"
+    meta["timing_ms"] = round((time.monotonic() - t0) * 1000)
+    return envelope
 
 
 # -- parser -------------------------------------------------------------------
@@ -812,85 +817,65 @@ def build_parser() -> argparse.ArgumentParser:
     p_enrich.add_argument("--source-url", dest="source_url", default=None)
     p_enrich.add_argument("--title", default=None, help="Known title override")
 
-    # Note mutations, executed through the running Obsidian app.
+    # Note mutations, executed through the running Obsidian app. All take
+    # --path plus the connection overrides; the mutating ones add --dry-run.
     obsidian_common = argparse.ArgumentParser(add_help=False)
+    obsidian_common.add_argument("--path", required=True, help="Vault-relative note path")
     obsidian_common.add_argument(
         "--binary", default=None, help="Obsidian CLI binary (config: `obsidian.binary`)"
     )
     obsidian_common.add_argument(
         "--vault", default=None, help="Obsidian vault name (config: `obsidian.vault`)"
     )
+    mutating = argparse.ArgumentParser(add_help=False, parents=[obsidian_common])
+    mutating.add_argument("--dry-run", action="store_true", dest="dry_run")
 
     p_create = sub.add_parser(
-        "create-note", parents=[obsidian_common], help="Create a note (fails if it exists)"
+        "create-note", parents=[mutating], help="Create a note (fails if it exists)"
     )
-    p_create.add_argument("--path", required=True)
     p_create.add_argument("--content", default=None)
     p_create.add_argument("--content-file", dest="content_file", default=None)
     p_create.add_argument("--frontmatter", default=None)
-    p_create.add_argument("--dry-run", action="store_true", dest="dry_run")
 
     p_read = sub.add_parser(
         "read-note", parents=[obsidian_common], help="Read a note via the Obsidian backend"
     )
-    p_read.add_argument("--path", required=True)
     p_read.add_argument("--frontmatter-only", action="store_true", dest="frontmatter_only")
     p_read.add_argument("--body-only", action="store_true", dest="body_only")
 
     p_merge = sub.add_parser(
-        "merge-frontmatter", parents=[obsidian_common], help="Merge a frontmatter patch"
+        "merge-frontmatter", parents=[mutating], help="Merge a frontmatter patch"
     )
-    p_merge.add_argument("--path", required=True)
     p_merge.add_argument("--patch", required=True)
-    p_merge.add_argument("--dry-run", action="store_true", dest="dry_run")
 
     p_links = sub.add_parser(
-        "add-links", parents=[obsidian_common], help="Turn anchor text into wikilinks"
+        "add-links", parents=[mutating], help="Turn anchor text into wikilinks"
     )
-    p_links.add_argument("--path", required=True)
     p_links.add_argument("--links", required=True)
-    p_links.add_argument("--dry-run", action="store_true", dest="dry_run")
 
     p_related = sub.add_parser(
-        "insert-related", parents=[obsidian_common], help="Add targets to '## Related'"
+        "insert-related", parents=[mutating], help="Add targets to '## Related'"
     )
-    p_related.add_argument("--path", required=True)
     p_related.add_argument("--targets", required=True)
-    p_related.add_argument("--dry-run", action="store_true", dest="dry_run")
 
     p_move = sub.add_parser(
-        "move-note", parents=[obsidian_common], help="Move a note (backend updates links)"
+        "move-note", parents=[mutating], help="Move a note (backend updates links)"
     )
-    p_move.add_argument("--path", required=True)
     p_move.add_argument("--to", required=True)
-    p_move.add_argument("--dry-run", action="store_true", dest="dry_run")
 
     p_rename = sub.add_parser(
-        "rename-note", parents=[obsidian_common], help="Rename a note (backend updates links)"
+        "rename-note", parents=[mutating], help="Rename a note (backend updates links)"
     )
-    p_rename.add_argument("--path", required=True)
     p_rename.add_argument("--name", required=True)
-    p_rename.add_argument("--dry-run", action="store_true", dest="dry_run")
 
-    p_open = sub.add_parser(
-        "open-note", parents=[obsidian_common], help="Open a note in the Obsidian app"
-    )
-    p_open.add_argument("--path", required=True)
+    sub.add_parser("open-note", parents=[obsidian_common], help="Open a note in the Obsidian app")
 
     return parser
 
 
-_OBSIDIAN_COMMANDS = (
-    "create-note",
-    "read-note",
-    "merge-frontmatter",
-    "add-links",
-    "insert-related",
-    "move-note",
-    "rename-note",
-    "open-note",
-)
-
+# The note-mutation subcommands are not listed here: anything the parser
+# accepts that has no query handler dispatches to _obsidian_handler, which
+# looks the action up in notes.HANDLERS (the single list of those commands).
 _HANDLERS = {
     "schema": cmd_schema,
     "sync": cmd_sync,
@@ -899,7 +884,6 @@ _HANDLERS = {
     "synthesize": cmd_synthesize,
     "lint": cmd_lint,
     "enrich": cmd_enrich,
-    **{name: _make_obsidian_handler(name) for name in _OBSIDIAN_COMMANDS},
 }
 
 
@@ -917,7 +901,7 @@ def main(argv: Optional[list] = None) -> int:
         parser.print_help()
         return 1
 
-    handler = _HANDLERS[args.command]
+    handler = _HANDLERS.get(args.command, _obsidian_handler)
     try:
         envelope = handler(args)
     except CliError as exc:

@@ -6,8 +6,9 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from conftest import write_config
 
-from vault_rag import cli, settings
+from vault_rag import cli
 from vault_rag.envelope import CliError
 from vault_rag.obsidian import backend as obsidian_backend
 
@@ -47,21 +48,15 @@ class FakeBackend:
 
 
 @pytest.fixture(autouse=True)
-def isolated_config(tmp_path, monkeypatch):
-    """Point settings at a temp config and reset backend state around every test."""
-    monkeypatch.setenv("VAULT_RAG_CONFIG", str(tmp_path / "config.yaml"))
-    settings.reset()
+def _isolated(isolated_config):
+    """Shared isolated config plus a clean backend connection state per test."""
     obsidian_backend.configure()
-    yield tmp_path
-    settings.reset()
+    yield
     obsidian_backend.configure()
 
 
 def enable_manage_updated(tmp_path):
-    (tmp_path / "config.yaml").write_text(
-        "obsidian:\n  manage_updated: true\n", encoding="utf-8"
-    )
-    settings.reset()
+    write_config(tmp_path, "obsidian:\n  manage_updated: true\n")
 
 
 def run(argv, backend, capsys, monkeypatch):

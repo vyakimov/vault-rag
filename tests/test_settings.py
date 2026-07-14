@@ -5,24 +5,15 @@ from __future__ import annotations
 import json
 
 import pytest
+from conftest import write_config
 
 from vault_rag import cli, settings
 
 
 @pytest.fixture(autouse=True)
-def isolated_config(tmp_path, monkeypatch):
-    """Point settings at a temp path and reset the cache around every test."""
-    monkeypatch.setenv("VAULT_RAG_CONFIG", str(tmp_path / "config.yaml"))
-    settings.reset()
-    yield tmp_path
-    monkeypatch.delenv("VAULT_RAG_CONFIG", raising=False)
-    settings.reset()
-
-
-def write_config(tmp_path, text: str):
-    """Write config.yaml and invalidate the cache — parsing happens on next read."""
-    (tmp_path / "config.yaml").write_text(text, encoding="utf-8")
-    settings.reset()
+def _isolated(isolated_config):
+    """Every test in this module runs against the shared isolated config."""
+    yield
 
 
 class TestDefaults:
