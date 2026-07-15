@@ -28,7 +28,7 @@ DEFAULT_CONFIG_PATH = REPO_ROOT / "config.yaml"
 # Built-in defaults. No personal paths, no vault-specific folder names.
 DEFAULTS: Dict[str, Dict[str, Any]] = {
     "vault": {
-        "root": None,  # no default vault; --root is required unless set here
+        "root": None,  # unset falls back to the active vault in Obsidian's registry
         "skip_dirs": [".trash", ".obsidian", "Templates"],
         "ignore_tags": ["ignore", "secret"],
         "distilled_dir": "Distilled",
@@ -44,7 +44,7 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
     # this installation's modified-date plugin is absent (manage_updated).
     "obsidian": {
         "binary": None,  # auto-discovered when unset
-        "vault": None,  # Obsidian vault name; unset = the app's active vault
+        "vault": None,  # unset maps vault.root, then falls back to the active vault
         "manage_updated": False,  # true only if no plugin maintains `updated`
     },
 }

@@ -72,6 +72,10 @@ def run(args: List[str], timeout: float = 20.0) -> str:
     lines = [line for line in proc.stdout.splitlines() if not NOISE_RE.match(line)]
     cleaned = "\n".join(lines).strip()
 
+    if cleaned == "Vault not found.":
+        raise CliError(
+            "config_mismatch", f"Obsidian vault not found: {_STATE.get('vault')}"
+        )
     if cleaned.startswith("Error:"):
         message = cleaned[len("Error:"):].strip()
         low = message.lower()

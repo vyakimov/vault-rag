@@ -24,6 +24,7 @@ class TestSchema:
         assert "synthesis_output" in envelope["result"]["contracts"]
         assert "create-note" in envelope["result"]["commands"]
         assert "contract_violation" in envelope["result"]["error_types"]
+        assert "config_mismatch" in envelope["result"]["error_types"]
 
     def test_schema_parser_and_handlers_stay_in_sync(self, capsys):
         """The published schema, the argparse surface, and the dispatch tables
@@ -160,6 +161,14 @@ class TestInvalidArguments:
         assert code == 1
         assert envelope["action"] == "cli"
         assert envelope["error"]["type"] == "invalid_arguments"
+
+    def test_missing_root_fails_at_command_time(self, capsys, isolated_config):
+        code, envelope = run(capsys, ["lint"])
+
+        assert code == 1
+        assert envelope["action"] == "lint"
+        assert envelope["error"]["type"] == "invalid_arguments"
+        assert "no active Obsidian vault" in envelope["error"]["message"]
 
     def test_non_positive_result_count_fails_before_provider(self, capsys, monkeypatch):
         monkeypatch.setattr(

@@ -5,15 +5,15 @@
 # baked into the source.
 #
 # Copy to config.yaml (gitignored) and edit. The file is OPTIONAL — without it the
-# defaults below apply and `--root` must be passed explicitly.
+# read path falls back to the active vault in Obsidian's registry.
 #
 # Secrets do NOT belong here. API keys go in .env (see .env.example).
 #
 # VAULT_RAG_CONFIG can point at this file somewhere else.
 
 vault:
-  # Default corpus root, so you can run `vault-rag lint` without `--root`.
-  # `~` is expanded. Leave unset (null) to require --root on every command.
+  # Default corpus root after an explicit --root. `~` is expanded. Leave unset
+  # (null) to use the active vault from Obsidian's registry.
   root: ~/Documents/MyVault
 
   # Directory names never indexed, at any depth. Add your Templater folder here —
@@ -56,7 +56,10 @@ obsidian:
   binary: null
 
   # Obsidian vault NAME (not a path — the vault as named in Obsidian's vault
-  # switcher). Leave unset to target the app's active vault.
+  # switcher). When set alongside vault.root, both must identify the same registered
+  # vault or commands fail with config_mismatch. When unset, vault.root is mapped to
+  # its registered name; with neither configured, commands target the active vault.
+  # Per-command --vault deliberately bypasses this consistency guard.
   vault: null
 
   # Whether the mutation commands should patch `updated` themselves after a

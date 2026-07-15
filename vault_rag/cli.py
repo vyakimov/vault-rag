@@ -52,6 +52,19 @@ def get_store(chroma_path: str, collection: str, provider: Optional[OpenRouterCl
     )
 
 
+def resolve_root(explicit: Optional[str]) -> str:
+    if explicit is not None:
+        return explicit
+    configured = settings.vault_root()
+    if configured is not None:
+        return configured
+
+    # Keep registry access out of query-only imports unless root fallback needs it.
+    from vault_rag.obsidian import registry
+
+    return registry.active_vault_path()
+
+
 # -- schema -------------------------------------------------------------------
 
 def _schema() -> Dict[str, Any]:
@@ -65,7 +78,7 @@ def _schema() -> Dict[str, Any]:
                 "mutates_state": True,
                 "mutates": "the index, never the vault",
                 "args": {
-                    "--root": "vault directory (required unless config.yaml sets vault.root)",
+                    "--root": "vault directory (default: config.yaml vault.root, else the active Obsidian vault)",
                     "--reset": "flag",
                     "--dry-run": "flag",
                 },
@@ -113,9 +126,9 @@ def _schema() -> Dict[str, Any]:
                     "--granularity": "document|section|mixed (mixed = section pool, max 3 sections per note; documents are not searched)",
                     "--retrieval": "path to a prior retrieve envelope/contract",
                     "--n-context": "int (default 8)",
-                    "--save": "flag: persist a good answer as a distilled note (needs --root, live query)",
+                    "--save": "flag: persist a good answer as a distilled note (root defaults to config.yaml vault.root, else the active Obsidian vault; live query only)",
                     "--save-dir": "distilled folder relative to --root (default Distilled)",
-                    "--root": "vault directory to write the distilled note into",
+                    "--root": "vault directory (default: config.yaml vault.root, else the active Obsidian vault)",
                     "--folder/--tag/--type/--since/--until/--must-include": "metadata and required-term filters",
                 },
                 "result": "synthesis_output (with embedded retrieval; +saved/saved_path when --save)",
@@ -124,7 +137,7 @@ def _schema() -> Dict[str, Any]:
                 "mutates_state": True,
                 "mutates": "the vault, only with --fix/--fix-timestamps",
                 "args": {
-                    "--root": "vault directory (required unless config.yaml sets vault.root)",
+                    "--root": "vault directory (default: config.yaml vault.root, else the active Obsidian vault)",
                     "--format": "json|text (default json)",
                     "--fix": "flag: write missing id/created/updated frontmatter",
                     "--fix-timestamps": "flag: rewrite naive created/updated/date as offset-aware",
@@ -134,7 +147,7 @@ def _schema() -> Dict[str, Any]:
             "enrich": {
                 "mutates_state": False,
                 "args": {
-                    "--root": "corpus directory (required unless config.yaml sets vault.root)",
+                    "--root": "vault directory (default: config.yaml vault.root, else the active Obsidian vault)",
                     "--note": "vault-relative path (xor --stdin)",
                     "--stdin": "flag: enrich raw text from stdin",
                     "--intent": "free text",
@@ -333,6 +346,7 @@ def _schema() -> Dict[str, Any]:
             "backend_error",
             "already_exists",
             "ambiguous_target",
+            "config_mismatch",
             "contract_violation",
         ],
     }
@@ -345,7 +359,7 @@ def cmd_schema(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def cmd_sync(args: argparse.Namespace) -> Dict[str, Any]:
-    root = args.root
+    root = resolve_root(args.root)
     if not os.path.isdir(root):
         return failure("sync", "invalid_arguments", f"root directory not found: {root}")
     if args.reset and args.dry_run:
@@ -480,8 +494,8 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
             "invalid_arguments",
             "--save cannot be combined with --retrieval (replay); it needs a live query",
         )
-    if args.save and not args.root:
-        return failure("synthesize", "invalid_arguments", "--root is required with --save")
+    if args.save:
+        args.root = resolve_root(args.root)
     if args.save and not os.path.isdir(args.root):
         return failure(
             "synthesize", "invalid_arguments", f"root directory not found: {args.root}"
@@ -600,6 +614,7 @@ def cmd_enrich(args: argparse.Namespace) -> Dict[str, Any]:
     from vault_rag.corpus.frontmatter import split_frontmatter
     from vault_rag.enrich.planner import EnrichInput, plan
 
+    args.root = resolve_root(args.root)
     if not os.path.isdir(args.root):
         return failure("enrich", "invalid_arguments", f"root directory not found: {args.root}")
 
@@ -722,6 +737,7 @@ def _lint_text(report: Dict[str, Any]) -> str:
 
 
 def cmd_lint(args: argparse.Namespace) -> Dict[str, Any]:
+    args.root = resolve_root(args.root)
     if not os.path.isdir(args.root):
         return failure("lint", "invalid_arguments", f"root directory not found: {args.root}")
 
@@ -762,22 +778,29 @@ def _obsidian_handler(args: argparse.Namespace) -> Dict[str, Any]:
     configured connection facts (CLI flags override config.yaml).
 
     Imported lazily so the query commands never load the mutation stack."""
-    from vault_rag.obsidian import backend, notes
+    from vault_rag.obsidian import backend, notes, registry
 
     try:
         args.path = validate_vault_relative_path(args.path, label="--path")
     except ValueError as exc:
         raise CliError("invalid_arguments", str(exc)) from exc
 
+    vault_name = registry.resolve_mutation_vault(
+        args.vault,
+        settings.obsidian_vault(),
+        settings.vault_root(),
+    )
+
     backend.configure(
         binary=args.binary or settings.obsidian_binary(),
-        vault=args.vault or settings.obsidian_vault(),
+        vault=vault_name,
         manage_updated=settings.obsidian_manage_updated(),
     )
     t0 = time.monotonic()
     envelope = notes.HANDLERS[args.command](args)
     meta = envelope.setdefault("meta", {})
     meta["backend"] = "obsidian-cli"
+    meta["vault"] = vault_name if vault_name is not None else "active"
     meta["timing_ms"] = round((time.monotonic() - t0) * 1000)
     return envelope
 
@@ -796,8 +819,6 @@ def _add_filter_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    # A configured `vault.root` makes --root optional; without one it stays required.
-    _VAULT_ROOT = settings.vault_root()
     parser = JsonArgumentParser(prog="vault-rag", description="Vault RAG JSON CLI")
     parser.add_argument(
         "--chroma-path",
@@ -823,9 +844,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_sync.add_argument(
         "--root",
-        required=_VAULT_ROOT is None,
-        default=_VAULT_ROOT,
-        help="Vault directory to index (default from config.yaml `vault.root`)",
+        required=False,
+        default=None,
+        help="Vault directory to index (default: config.yaml `vault.root`, else active Obsidian vault)",
     )
     p_sync.add_argument("--reset", action="store_true", help="Rebuild from scratch")
     p_sync.add_argument("--dry-run", dest="dry_run", action="store_true")
@@ -861,17 +882,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_synth.add_argument(
         "--root",
-        default=_VAULT_ROOT,
-        help="Vault directory to write the distilled note into (config: `vault.root`)",
+        required=False,
+        default=None,
+        help="Vault directory to write into (default: config.yaml `vault.root`, else active Obsidian vault)",
     )
     _add_filter_arguments(p_synth)
 
     p_lint = sub.add_parser("lint", parents=[common], help="Read-only corpus health report")
     p_lint.add_argument(
         "--root",
-        required=_VAULT_ROOT is None,
-        default=_VAULT_ROOT,
-        help="Vault directory to lint (default from config.yaml `vault.root`)",
+        required=False,
+        default=None,
+        help="Vault directory to lint (default: config.yaml `vault.root`, else active Obsidian vault)",
     )
     p_lint.add_argument("--format", choices=["json", "text"], default="json")
     p_lint.add_argument(
@@ -888,9 +910,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_enrich.add_argument(
         "--root",
-        required=_VAULT_ROOT is None,
-        default=_VAULT_ROOT,
-        help="Corpus directory (default from config.yaml `vault.root`)",
+        required=False,
+        default=None,
+        help="Corpus directory (default: config.yaml `vault.root`, else active Obsidian vault)",
     )
     p_enrich.add_argument("--note", default=None, help="Vault-relative path of an existing note")
     p_enrich.add_argument("--stdin", action="store_true", help="Enrich raw text read from stdin")

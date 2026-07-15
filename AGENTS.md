@@ -26,8 +26,9 @@ by the `granularity` metadata field.
 ## Key Commands
 
 - `uv run vault-rag schema`
-  - Prints the machine-readable command + contract schema (`version: 1`).
-- `uv run vault-rag sync [--root <dir>] [--reset]`  (`--root` defaults to `vault.root` in `config.yaml`)
+  - Prints the machine-readable command + contract schema (`version: 2`).
+- `uv run vault-rag sync [--root <dir>] [--reset]`  (`--root` defaults to `vault.root` in
+  `config.yaml`, then the active Obsidian vault)
   - Incremental sync: adds new notes, re-embeds changed or moved notes, deletes removed notes.
     Notes sharing a duplicate frontmatter `id` are skipped after the first and reported in
     the result's `warnings`.
@@ -72,8 +73,12 @@ by the `granularity` metadata field.
 - **Note mutations** — `create-note`, `read-note`, `merge-frontmatter`, `add-links`,
   `insert-related`, `move-note`, `rename-note`, `open-note` (all `uv run vault-rag <command>`).
   - Executed through the official Obsidian CLI; **the Obsidian app must be running** (macOS only).
-    Connection facts come from `config.yaml` (`obsidian.binary`/`obsidian.vault`, overridable per
-    command with `--binary`/`--vault`).
+    Vault resolution is flags > `config.yaml` > the active vault. Obsidian's registry bridges the
+    read path's `vault.root` filesystem path to the mutation backend's vault name and fails with
+    `config_mismatch` if configured paths/names disagree or the root is unregistered. Per-command
+    `--vault` is the explicit escape hatch: it rejects empty names, validates registered names
+    when the registry is readable, and skips only the root-agreement guard; `--binary` also
+    overrides config.
   - Every mutating command accepts `--dry-run`: it computes and returns exactly what would change
     with `meta.dry_run: true` and makes no backend mutation calls.
   - `create-note --auto-id` mints `id` (ULID) and `created`/`updated` (the same timestamp,
@@ -101,7 +106,7 @@ This holds for *every* failure: argparse errors (bad flags, missing/unknown comm
 converted to `invalid_arguments` envelopes rather than printing usage text.
 Error types: `invalid_arguments`, `index_empty`, `provider_error`, `not_found`, `internal_error`,
 `obsidian_not_running`, `backend_error`, `already_exists`, `ambiguous_target`,
-`contract_violation`. The schema (`vault-rag schema`) is `version: 2` — the version where the
+`config_mismatch`, `contract_violation`. The schema (`vault-rag schema`) is `version: 2` — the version where the
 mutation commands were merged in. In the schema, `mutates_state` is always a boolean ("can this
 command write?"); the optional `mutates` string qualifies what and when.
 
@@ -183,12 +188,13 @@ from `config.yaml` (`timestamps.policy`: `offset_local` or `utc_z`).
 All of these are configurable in `config.yaml`; the values below are the defaults.
 
 - ChromaDB directory: `./chroma_db/` (`index.chroma_path`)
-- Note source: none by default — set `vault.root`, or pass `--root`
+- Note source: `--root`, then `vault.root`, then the active vault from Obsidian's registry
 - Skipped folders: `.trash`, `.obsidian`, `Templates` (`vault.skip_dirs`), all hidden
   directories, plus Excalidraw drawings
 - Never-indexed tags: `#ignore`, `#secret` (`vault.ignore_tags`)
-- Obsidian mutation backend: binary auto-discovered, app's active vault,
-  `manage_updated: false` (`obsidian.binary` / `obsidian.vault` / `obsidian.manage_updated`)
+- Obsidian mutation backend: binary auto-discovered; vault from `--vault`, then guarded config,
+  then the app's active vault; `manage_updated: false` (`obsidian.binary` / `obsidian.vault` /
+  `obsidian.manage_updated`)
 - Streamlit entrypoint: `scripts/streamlit_app.py`
 
 ## Development Notes

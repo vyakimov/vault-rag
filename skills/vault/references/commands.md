@@ -7,11 +7,13 @@ Check `"ok"`, not exit codes. Run `vault-rag schema` for the machine-readable ve
 
 Error types (shared union): `invalid_arguments`, `index_empty`, `provider_error`, `not_found`,
 `internal_error`, `obsidian_not_running`, `backend_error`, `already_exists`, `ambiguous_target`,
-`contract_violation`.
+`config_mismatch`, `contract_violation`.
 
 ## Query & maintenance commands (run via `uv run vault-rag`)
 
-`--root` defaults to `config.yaml` `vault.root` everywhere; pass it only when that is unset.
+Vault resolution is explicit flags, then `config.yaml`, then the active Obsidian vault.
+`config_mismatch` means config and Obsidian disagree about the vault; surface it verbatim and
+tell the user to fix config.
 
 ```
 vault-rag schema
@@ -79,7 +81,9 @@ vault-rag open-note     --path "..."
   per `timestamps.policy`) for whichever of the three are missing from `--frontmatter` — always
   prefer it over minting those fields by hand.
 - Connection facts come from `config.yaml` (`obsidian.binary`, `obsidian.vault`,
-  `obsidian.manage_updated`); `--binary`/`--vault` override per command.
+  `obsidian.manage_updated`); `--binary`/`--vault` override per command. Explicit `--vault`
+  rejects empty names, validates registered names when possible, and skips the root-agreement
+  guard.
 - `id`/`created` are immutable once set (`contract_violation`); empty optional fields are
   refused; creates/moves/renames never overwrite (`already_exists`).
 - `move-note` needs the destination folder to already exist (enrich's `suggested_path` folders do).

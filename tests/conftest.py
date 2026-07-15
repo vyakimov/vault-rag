@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from vault_rag import settings
+from vault_rag.obsidian import registry
 
 EMBED_DIM = 16
 
@@ -24,6 +25,19 @@ def isolated_config(tmp_path: Path, monkeypatch):
     yield tmp_path
     monkeypatch.delenv("VAULT_RAG_CONFIG", raising=False)
     settings.reset()
+
+
+@pytest.fixture(autouse=True)
+def isolated_obsidian_registry(tmp_path: Path, monkeypatch):
+    """Prevent a developer's real Obsidian registry from affecting tests."""
+    path = tmp_path / "obsidian.json"
+    monkeypatch.setattr(registry, "registry_path", lambda: path)
+    yield path
+
+
+def write_registry(path: Path, vaults) -> None:
+    """Write a minimal Obsidian registry fixture."""
+    path.write_text(json.dumps({"vaults": vaults, "cli": True}), encoding="utf-8")
 
 
 def write_config(tmp_path: Path, text: str) -> None:

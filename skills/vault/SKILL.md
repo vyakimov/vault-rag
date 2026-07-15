@@ -18,7 +18,8 @@ never exit codes.**
 
 - **`vault-rag`** — run from the repo via `uv run vault-rag ...`; one CLI for both reading and
   writing the vault. Config comes from `config.yaml` (vault root, skip dirs, distilled dir,
-  Obsidian connection facts — see `config.yaml.example`), so `--root` can be omitted everywhere.
+  Obsidian connection facts — see `config.yaml.example`). Vault resolution is explicit flags,
+  then config, then the active Obsidian vault, so `--root` can be omitted everywhere.
   - *Query commands* (`retrieve`, `synthesize`, `enrich`, `stats`, `sync`, `lint`) need `.env`
     (OpenRouter) except `stats` and `lint`. `vault-rag stats` needs no API key — it is the cheap
     "is the index alive?" check.
@@ -93,8 +94,9 @@ changed, `sync --dry-run` previews adds/updates/deletes without touching the ind
 - Create notes with `create-note --auto-id` so the CLI mints `id`/`created`/`updated`; never
   mint those values by hand.
 - Move/rename only with explicit user approval of the exact destination.
-- Anything reported as `ambiguous_target` or `contract_violation` → surface verbatim; do not
-  work around it.
+- Anything reported as `ambiguous_target`, `config_mismatch`, or `contract_violation` → surface
+  verbatim; do not work around it. `config_mismatch` means config and Obsidian disagree about the
+  vault in use, so tell the user to fix config.
 
 ## Output conventions
 

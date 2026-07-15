@@ -6,7 +6,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from conftest import write_config
+from conftest import write_config, write_registry
 
 from vault_rag import cli
 from vault_rag.envelope import CliError
@@ -93,6 +93,20 @@ class TestBackendLayer:
         with pytest.raises(CliError) as exc:
             obsidian_backend.run(["read", "path=x.md"])
         assert exc.value.err_type == "obsidian_not_running"
+
+    def test_vault_not_found_without_error_prefix_is_config_mismatch(self, monkeypatch):
+        obsidian_backend.configure(vault="MissingVault")
+        monkeypatch.setattr(obsidian_backend, "_resolve_binary", lambda: "/bin/true")
+        monkeypatch.setattr(
+            obsidian_backend.subprocess,
+            "run",
+            lambda *a, **k: self._fake_proc("Vault not found.\n"),
+        )
+
+        with pytest.raises(CliError) as exc:
+            obsidian_backend.run(["read", "path=x.md"])
+        assert exc.value.err_type == "config_mismatch"
+        assert exc.value.message == "Obsidian vault not found: MissingVault"
 
 
 # -- create-note -------------------------------------------------------------
@@ -366,3 +380,187 @@ class TestEnvelope:
         assert code == 1
         assert env["ok"] is False
         assert set(["type", "message", "details"]).issubset(env["error"])
+
+
+# -- vault resolution guard --------------------------------------------------
+
+class TestVaultResolution:
+    def test_configured_root_drives_registered_vault_name(
+        self, capsys, monkeypatch, isolated_config, isolated_obsidian_registry
+    ):
+        vault = isolated_config / "MyVault"
+        vault.mkdir()
+        write_config(isolated_config, f"vault:\n  root: {json.dumps(str(vault))}\n")
+        write_registry(
+            isolated_obsidian_registry,
+            {"one": {"path": str(vault), "open": True}},
+        )
+        backend = FakeBackend()
+
+        code, env = run(
+            ["create-note", "--path", "A.md", "--dry-run"],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 0 and env["ok"]
+        assert obsidian_backend._STATE["vault"] == "MyVault"
+        assert env["meta"]["vault"] == "MyVault"
+
+    def test_unregistered_configured_root_fails_closed(
+        self, capsys, monkeypatch, isolated_config
+    ):
+        root = isolated_config / "Unregistered"
+        root.mkdir()
+        write_config(isolated_config, f"vault:\n  root: {json.dumps(str(root))}\n")
+        backend = FakeBackend()
+
+        code, env = run(
+            ["create-note", "--path", "A.md", "--dry-run"],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 1
+        assert env["error"]["type"] == "config_mismatch"
+        assert backend.calls == []
+
+    def test_configured_name_and_root_mismatch_fails_closed(
+        self, capsys, monkeypatch, isolated_config, isolated_obsidian_registry
+    ):
+        root = isolated_config / "ReadVault"
+        other = isolated_config / "WriteVault"
+        root.mkdir()
+        other.mkdir()
+        write_config(
+            isolated_config,
+            "vault:\n"
+            f"  root: {json.dumps(str(root))}\n"
+            "obsidian:\n"
+            "  vault: WriteVault\n",
+        )
+        write_registry(
+            isolated_obsidian_registry,
+            {"other": {"path": str(other), "open": True}},
+        )
+        backend = FakeBackend()
+
+        code, env = run(
+            ["create-note", "--path", "A.md", "--dry-run"],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 1
+        assert env["error"]["type"] == "config_mismatch"
+        assert env["error"]["message"] == (
+            "config.yaml obsidian.vault and vault.root point at different vaults"
+        )
+        assert backend.calls == []
+
+    def test_explicit_vault_bypasses_registry_guard(
+        self, capsys, monkeypatch, isolated_config
+    ):
+        root = isolated_config / "Unregistered"
+        root.mkdir()
+        write_config(isolated_config, f"vault:\n  root: {json.dumps(str(root))}\n")
+        backend = FakeBackend()
+
+        code, env = run(
+            [
+                "create-note",
+                "--path",
+                "A.md",
+                "--vault",
+                "DeliberateTarget",
+                "--dry-run",
+            ],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 0 and env["ok"]
+        assert obsidian_backend._STATE["vault"] == "DeliberateTarget"
+        assert env["meta"]["vault"] == "DeliberateTarget"
+
+    def test_explicit_vault_typo_is_rejected_when_registry_is_readable(
+        self, capsys, monkeypatch, isolated_config, isolated_obsidian_registry
+    ):
+        vault = isolated_config / "MyVault"
+        vault.mkdir()
+        write_registry(
+            isolated_obsidian_registry,
+            {"one": {"path": str(vault), "open": True}},
+        )
+        backend = FakeBackend()
+
+        code, env = run(
+            ["create-note", "--path", "A.md", "--vault", "Valt", "--dry-run"],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 1
+        assert env["error"]["type"] == "config_mismatch"
+        assert backend.calls == []
+
+    def test_explicit_vault_escape_hatch_works_without_registry(
+        self, capsys, monkeypatch
+    ):
+        backend = FakeBackend()
+
+        code, env = run(
+            [
+                "create-note",
+                "--path",
+                "A.md",
+                "--vault",
+                "Anything",
+                "--dry-run",
+            ],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 0 and env["ok"]
+        assert obsidian_backend._STATE["vault"] == "Anything"
+        assert env["meta"]["vault"] == "Anything"
+
+    def test_empty_explicit_vault_is_invalid_arguments(
+        self, capsys, monkeypatch
+    ):
+        backend = FakeBackend()
+
+        code, env = run(
+            ["create-note", "--path", "A.md", "--vault", "", "--dry-run"],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 1
+        assert env["error"]["type"] == "invalid_arguments"
+        assert env["error"]["message"] == "--vault must not be empty"
+        assert backend.calls == []
+
+    def test_nothing_configured_uses_active_backend_target(
+        self, capsys, monkeypatch
+    ):
+        backend = FakeBackend()
+
+        code, env = run(
+            ["create-note", "--path", "A.md", "--dry-run"],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+
+        assert code == 0 and env["ok"]
+        assert obsidian_backend._STATE["vault"] is None
+        assert env["meta"]["vault"] == "active"
