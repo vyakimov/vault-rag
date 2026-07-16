@@ -22,7 +22,7 @@ class TestDefaults:
         assert settings.skip_dirs() == {".trash", ".obsidian", "Templates"}
         assert settings.ignore_tags() == ["ignore", "secret"]
         assert settings.distilled_dir() == "Distilled"
-        assert settings.chroma_path() == "chroma_db"
+        assert settings.chroma_path() == str(settings.config_path().parent / "chroma_db")
         assert settings.timestamp_policy() == "offset_local"
 
     def test_defaults_carry_no_personal_paths(self):
@@ -37,7 +37,45 @@ class TestOverrides:
         assert settings.distilled_dir() == "Derived"
         # Untouched keys keep their defaults.
         assert settings.ignore_tags() == ["ignore", "secret"]
-        assert settings.chroma_path() == "chroma_db"
+        assert settings.chroma_path() == str(isolated_config / "chroma_db")
+
+    def test_relative_filesystem_paths_are_config_local(
+        self, isolated_config, monkeypatch
+    ):
+        write_config(
+            isolated_config,
+            "vault:\n"
+            "  root: vault\n"
+            "index:\n"
+            "  chroma_path: chroma_db\n"
+            "obsidian:\n"
+            "  binary: bin/obsidian\n",
+        )
+        launch_dir = isolated_config / "elsewhere"
+        launch_dir.mkdir()
+        monkeypatch.chdir(launch_dir)
+
+        assert settings.vault_root() == str(isolated_config / "vault")
+        assert settings.chroma_path() == str(isolated_config / "chroma_db")
+        assert settings.obsidian_binary() == str(isolated_config / "bin" / "obsidian")
+
+    def test_absolute_filesystem_paths_are_unchanged(self, isolated_config):
+        vault = isolated_config / "absolute-vault"
+        chroma = isolated_config / "absolute-chroma"
+        binary = isolated_config / "absolute-obsidian"
+        write_config(
+            isolated_config,
+            "vault:\n"
+            f"  root: {vault}\n"
+            "index:\n"
+            f"  chroma_path: {chroma}\n"
+            "obsidian:\n"
+            f"  binary: {binary}\n",
+        )
+
+        assert settings.vault_root() == str(vault)
+        assert settings.chroma_path() == str(chroma)
+        assert settings.obsidian_binary() == str(binary)
 
     def test_skip_dirs_and_root(self, isolated_config):
         write_config(

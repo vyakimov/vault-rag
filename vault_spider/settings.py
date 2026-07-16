@@ -56,7 +56,7 @@ class ConfigError(ValueError):
 
 def config_path() -> Path:
     override = os.environ.get("VAULT_SPIDER_CONFIG")
-    return Path(override).expanduser() if override else DEFAULT_CONFIG_PATH
+    return Path(override).expanduser().absolute() if override else DEFAULT_CONFIG_PATH
 
 
 _cache: Optional[Dict[str, Dict[str, Any]]] = None
@@ -107,9 +107,17 @@ def _get(section: str, key: str) -> Any:
     return load()[section][key]
 
 
+def _config_local_path(value: Any) -> str:
+    """Expand a configured path and anchor relative values beside config.yaml."""
+    path = Path(str(value)).expanduser()
+    if path.is_absolute():
+        return str(path)
+    return str(config_path().parent / path)
+
+
 def vault_root() -> Optional[str]:
     root = _get("vault", "root")
-    return str(Path(str(root)).expanduser()) if root else None
+    return _config_local_path(root) if root else None
 
 
 def skip_dirs() -> Set[str]:
@@ -125,12 +133,12 @@ def distilled_dir() -> str:
 
 
 def chroma_path() -> str:
-    return str(_get("index", "chroma_path"))
+    return _config_local_path(_get("index", "chroma_path"))
 
 
 def obsidian_binary() -> Optional[str]:
     binary = _get("obsidian", "binary")
-    return str(Path(str(binary)).expanduser()) if binary else None
+    return _config_local_path(binary) if binary else None
 
 
 def obsidian_vault() -> Optional[str]:

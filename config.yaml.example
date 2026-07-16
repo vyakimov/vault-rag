@@ -12,8 +12,9 @@
 # VAULT_SPIDER_CONFIG can point at this file somewhere else.
 
 vault:
-  # Default corpus root after an explicit --root. `~` is expanded. Leave unset
-  # (null) to use the active vault from Obsidian's registry.
+  # Default corpus root after an explicit --root. `~` is expanded and relative paths
+  # are resolved from this config file's directory. Leave unset (null) to use the
+  # active vault from Obsidian's registry.
   root: ~/Documents/MyVault
 
   # Directory names never indexed, at any depth. Add your Templater folder here —
@@ -35,7 +36,7 @@ vault:
   distilled_dir: Distilled
 
 index:
-  # ChromaDB persistence directory, relative to the repo (or an absolute path).
+  # ChromaDB persistence directory, relative to this config file (or an absolute path).
   chroma_path: chroma_db
 
 timestamps:
@@ -51,8 +52,9 @@ obsidian:
   # add-links, insert-related, move-note, rename-note, open-note). These commands
   # go through the official Obsidian CLI, so the Obsidian app must be running.
   #
-  # Path to the official `obsidian` CLI binary. Leave unset to auto-discover
-  # (/usr/local/bin/obsidian, then the app bundle).
+  # Path to the official `obsidian` CLI binary. Relative paths resolve from this
+  # config file's directory. Leave unset to auto-discover (/usr/local/bin/obsidian,
+  # then the app bundle).
   binary: null
 
   # Obsidian vault NAME (not a path — the vault as named in Obsidian's vault

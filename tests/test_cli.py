@@ -80,16 +80,22 @@ class TestEnvelopeShape:
         assert chroma.exists()
 
     def test_chroma_path_default(
-        self, capsys, tmp_path, tiny_vault, fake_provider, monkeypatch
+        self, capsys, isolated_config, tiny_vault, fake_provider, monkeypatch
     ):
         monkeypatch.setattr(cli, "get_provider", lambda: fake_provider)
-        monkeypatch.chdir(tmp_path)
+        (isolated_config / "config.yaml").write_text(
+            "index:\n  chroma_path: chroma_db\n", encoding="utf-8"
+        )
+        launch_dir = isolated_config / "elsewhere"
+        launch_dir.mkdir()
+        monkeypatch.chdir(launch_dir)
 
         code, envelope = run(capsys, ["sync", "--root", str(tiny_vault)])
 
         assert code == 0
         assert envelope["ok"] is True
-        assert (tmp_path / "chroma_db").exists()
+        assert (isolated_config / "chroma_db").exists()
+        assert not (launch_dir / "chroma_db").exists()
 
 
 class TestSyncAndRetrieve:
