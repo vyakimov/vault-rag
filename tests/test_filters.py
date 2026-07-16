@@ -1,9 +1,9 @@
 import os
 from datetime import datetime, timezone
 
-from vault_rag import cli
-from vault_rag.index.store import IndexStore
-from vault_rag.retrieval.searcher import Searcher
+from vault_spider import cli
+from vault_spider.index.store import IndexStore
+from vault_spider.retrieval.searcher import Searcher
 
 
 def build_searcher(tmp_path, tiny_vault, fake_provider):

@@ -1,4 +1,4 @@
-"""Configuration for Vault RAG retrieval and ranking."""
+"""Configuration for Vault Spider retrieval and ranking."""
 
 import math
 from dataclasses import dataclass, replace

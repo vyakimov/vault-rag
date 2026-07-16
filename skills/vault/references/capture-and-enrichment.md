@@ -1,12 +1,12 @@
 # Capture & enrichment runbook
 
 The less-frequent, multi-step flows: getting new material into the vault and enriching it. Ordering
-and confirmation policy only — the actual planning/mutation logic lives in `vault-rag enrich` and
+and confirmation policy only — the actual planning/mutation logic lives in `vault-spider enrich` and
 the mutation commands.
 
 ## Frontmatter at capture (important)
 
-Templater does **not** fire on CLI-created notes, so `vault-rag create-note` must supply the
+Templater does **not** fire on CLI-created notes, so `vault-spider create-note` must supply the
 universal fields itself — pass `--auto-id` and the CLI mints them. The `update-time-on-edit`
 plugin then maintains `updated` on every subsequent edit, so the CLI leaves `updated` alone
 (`obsidian.manage_updated: false`).
@@ -22,7 +22,7 @@ Values set explicitly in `--frontmatter` always win; `--auto-id` fills only the 
 ## Capture
 
 ```bash
-./bin/vault-rag create-note --path "Inbox/<name>.md" --content-file raw.txt \
+./bin/vault-spider create-note --path "Inbox/<name>.md" --content-file raw.txt \
     --auto-id --frontmatter '{"source_type":"..."}'
 ```
 
@@ -33,28 +33,28 @@ offer enrichment.
 
 1. **Plan** (read-only, no mutations; `--root` comes from `config.yaml` unless overridden):
    ```bash
-   ./bin/vault-rag enrich --note "Inbox/<name>.md" --intent "..." --source-type "..." > plan.json
+   ./bin/vault-spider enrich --note "Inbox/<name>.md" --intent "..." --source-type "..." > plan.json
    ```
    Show the user the plan summary: title, `frontmatter_patch`, links, `suggested_path`, confidence.
    If `confidence: low`, show the warnings and apply **nothing** unless the user insists.
 
 2. **Apply in this order, each `--dry-run` first, then for real on confirmation:**
    ```bash
-   ./bin/vault-rag merge-frontmatter --path "Inbox/<name>.md" --patch '<plan.frontmatter_patch>'
-   ./bin/vault-rag add-links         --path "Inbox/<name>.md" --links '<plan.link_insertions>'
-   ./bin/vault-rag insert-related    --path "Inbox/<name>.md" --targets '<[t.target for t in plan.related_candidates]>'
+   ./bin/vault-spider merge-frontmatter --path "Inbox/<name>.md" --patch '<plan.frontmatter_patch>'
+   ./bin/vault-spider add-links         --path "Inbox/<name>.md" --links '<plan.link_insertions>'
+   ./bin/vault-spider insert-related    --path "Inbox/<name>.md" --targets '<[t.target for t in plan.related_candidates]>'
    ```
 
 3. **Placement** (only if the user agrees to the destination):
    ```bash
-   ./bin/vault-rag rename-note --path "Inbox/<name>.md" --name "<plan.title>"        # if plan.title_changed
-   ./bin/vault-rag move-note   --path "Inbox/<new-name>.md" --to "<folder of plan.suggested_path>"
+   ./bin/vault-spider rename-note --path "Inbox/<name>.md" --name "<plan.title>"        # if plan.title_changed
+   ./bin/vault-spider move-note   --path "Inbox/<new-name>.md" --to "<folder of plan.suggested_path>"
    ```
    `suggested_path` is advisory. The destination folder must already exist.
 
 4. **Re-index** when done (incremental — only the touched notes are re-embedded):
    ```bash
-   ./bin/vault-rag sync
+   ./bin/vault-spider sync
    ```
 
 ## Safety reminders

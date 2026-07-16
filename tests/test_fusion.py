@@ -1,4 +1,4 @@
-"""Golden-value tests for vault_rag.retrieval.fusion.
+"""Golden-value tests for vault_spider.retrieval.fusion.
 
 Expected values were computed with the pre-refactor Searcher implementation
 (scripts/searcher.py at git HEAD) for the fixed input below and hard-coded here
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from vault_rag.retrieval.fusion import (
+from vault_spider.retrieval.fusion import (
     min_max_scale,
     reciprocal_rank_fusion,
     zscore_sigmoid_fusion,

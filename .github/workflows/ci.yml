@@ -21,4 +21,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --all-groups
-      - run: uv run pyright vault_rag
+      - run: uv run pyright vault_spider

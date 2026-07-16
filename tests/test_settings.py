@@ -1,4 +1,4 @@
-"""Tests for vault_rag.settings (the optional config.yaml)."""
+"""Tests for vault_spider.settings (the optional config.yaml)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 import pytest
 from conftest import write_config
 
-from vault_rag import cli, settings
+from vault_spider import cli, settings
 
 
 @pytest.fixture(autouse=True)
@@ -87,7 +87,7 @@ class TestErrors:
 
 class TestLoaderHonoursConfig:
     def test_configured_skip_dir_is_not_indexed(self, isolated_config):
-        from vault_rag.corpus.loader import load_notes
+        from vault_spider.corpus.loader import load_notes
 
         write_config(isolated_config, "vault:\n  skip_dirs: ['999 Templates']\n")
         vault = isolated_config / "vault"
@@ -98,7 +98,7 @@ class TestLoaderHonoursConfig:
         assert [n.path for n in load_notes(str(vault))] == ["keep.md"]
 
     def test_configured_ignore_tag_is_honoured(self, isolated_config):
-        from vault_rag.corpus.loader import load_notes
+        from vault_spider.corpus.loader import load_notes
 
         write_config(isolated_config, "vault:\n  ignore_tags: [private]\n")
         vault = isolated_config / "vault"

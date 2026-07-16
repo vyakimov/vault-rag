@@ -15,7 +15,7 @@ import re
 import subprocess
 from typing import Any, Dict, List, Optional
 
-from vault_rag.envelope import CliError
+from vault_spider.envelope import CliError
 
 BINARY_CANDIDATES = [
     "/usr/local/bin/obsidian",

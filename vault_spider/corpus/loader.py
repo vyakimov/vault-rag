@@ -9,9 +9,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
-from vault_rag import settings
-from vault_rag.corpus.frontmatter import coerce_datetime, normalize_tags, split_frontmatter
-from vault_rag.corpus.identity import resolve_note_id
+from vault_spider import settings
+from vault_spider.corpus.frontmatter import coerce_datetime, normalize_tags, split_frontmatter
+from vault_spider.corpus.identity import resolve_note_id
 
 DATE_FILENAME_RE = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})\.md$")
 

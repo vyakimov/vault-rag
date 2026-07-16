@@ -1,4 +1,4 @@
-"""Read-only Chroma access for Vault RAG."""
+"""Read-only Chroma access for Vault Spider."""
 
 from __future__ import annotations
 

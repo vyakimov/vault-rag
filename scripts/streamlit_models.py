@@ -6,10 +6,10 @@ from typing import Optional, Tuple
 
 import streamlit as st
 
-from vault_rag import settings
-from vault_rag.index.store import IndexStore
-from vault_rag.llm.openrouter import OpenRouterClient
-from vault_rag.retrieval.searcher import Searcher
+from vault_spider import settings
+from vault_spider.index.store import IndexStore
+from vault_spider.llm.openrouter import OpenRouterClient
+from vault_spider.retrieval.searcher import Searcher
 
 
 @st.cache_resource
@@ -26,7 +26,7 @@ def get_store_and_searcher() -> Tuple[Optional[IndexStore], Optional[Searcher], 
             return (
                 None,
                 None,
-                'No notes found in the index. Run `uv run vault-rag sync` first.',
+                'No notes found in the index. Run `uv run vault-spider sync` first.',
             )
         searcher = Searcher(store, granularity="document", provider=provider)
         return store, searcher, None

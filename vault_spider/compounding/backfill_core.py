@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ulid import ULID
 
-from vault_rag import settings
-from vault_rag.corpus.frontmatter import coerce_datetime
+from vault_spider import settings
+from vault_spider.corpus.frontmatter import coerce_datetime
 
 ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
 LEGACY_ID_FIELDS = ("uid", "ulid", "luid")

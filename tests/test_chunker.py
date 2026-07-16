@@ -1,9 +1,9 @@
-"""Tests for vault_rag.corpus.chunker.split_sections."""
+"""Tests for vault_spider.corpus.chunker.split_sections."""
 
 from __future__ import annotations
 
-from vault_rag.corpus.chunker import section_text, split_sections
-from vault_rag.corpus.loader import Note
+from vault_spider.corpus.chunker import section_text, split_sections
+from vault_spider.corpus.loader import Note
 
 
 def make_note(body: str, note_id: str = "n") -> Note:

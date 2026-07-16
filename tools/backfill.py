@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Reuse the exact reading helpers the package already ships (identical behavior
 # to the pre-refactor scripts/vault_ingestion.py the spec referenced).
-from vault_rag.compounding.backfill_core import (
+from vault_spider.compounding.backfill_core import (
     LEGACY_ID_FIELDS,
     ULID_RE,
     Change,
@@ -41,8 +41,8 @@ from vault_rag.compounding.backfill_core import (
     resolve_id,
     resolve_updated,
 )
-from vault_rag.corpus.frontmatter import coerce_datetime, split_frontmatter
-from vault_rag.corpus.loader import is_skipped_path
+from vault_spider.corpus.frontmatter import coerce_datetime, split_frontmatter
+from vault_spider.corpus.loader import is_skipped_path
 
 CONTRACT_ORDER = ("id", "created", "updated")
 

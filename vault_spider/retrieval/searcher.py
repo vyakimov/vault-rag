@@ -12,15 +12,15 @@ import numpy as np
 import pandas as pd
 from nltk.stem import PorterStemmer
 
-from vault_rag.config import DEFAULT_SEARCH_PARAMS
-from vault_rag.llm.openrouter import OpenRouterClient, OpenRouterError
-from vault_rag.retrieval.fusion import (
+from vault_spider.config import DEFAULT_SEARCH_PARAMS
+from vault_spider.llm.openrouter import OpenRouterClient, OpenRouterError
+from vault_spider.retrieval.fusion import (
     min_max_scale,
     reciprocal_rank_fusion,
     zscore_sigmoid_fusion,
 )
-from vault_rag.retrieval.query_cache import QueryEmbeddingCache
-from vault_rag.utils import DEFAULT_STOP_WORDS, normalize_no_punct, tokenize_for_bm25
+from vault_spider.retrieval.query_cache import QueryEmbeddingCache
+from vault_spider.utils import DEFAULT_STOP_WORDS, normalize_no_punct, tokenize_for_bm25
 
 
 @dataclass

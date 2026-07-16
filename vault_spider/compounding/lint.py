@@ -9,8 +9,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from vault_rag.corpus.frontmatter import coerce_datetime, normalize_tags, split_frontmatter
-from vault_rag.corpus.loader import (
+from vault_spider.corpus.frontmatter import coerce_datetime, normalize_tags, split_frontmatter
+from vault_spider.corpus.loader import (
     EXCALIDRAW_SUFFIX,
     has_ignore_frontmatter_tag,
     has_ignore_tag,
@@ -442,7 +442,7 @@ def fix_naive_timestamps(root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str
     it), so the local offset is attached — with historical DST — rather than assuming UTC.
     Unparseable values are never guessed at; they are skipped and reported.
     """
-    from vault_rag.compounding.backfill_core import format_timestamp
+    from vault_spider.compounding.backfill_core import format_timestamp
 
     root_path = Path(root)
     fixed: List[Dict[str, Any]] = []
@@ -495,7 +495,7 @@ def fix_naive_timestamps(root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str
 
 
 def fix_missing_frontmatter(root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    from vault_rag.compounding.backfill_core import (
+    from vault_spider.compounding.backfill_core import (
         _as_str,
         apply_changes_to_text,
         detect_ambiguity,

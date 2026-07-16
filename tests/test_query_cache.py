@@ -1,8 +1,8 @@
 import json
 
-from vault_rag.index.store import IndexStore
-from vault_rag.retrieval.query_cache import QueryEmbeddingCache
-from vault_rag.retrieval.searcher import Searcher
+from vault_spider.index.store import IndexStore
+from vault_spider.retrieval.query_cache import QueryEmbeddingCache
+from vault_spider.retrieval.searcher import Searcher
 
 
 def test_put_get_roundtrip(tmp_path):
@@ -30,7 +30,7 @@ def test_eviction_keeps_newest_entries(tmp_path, monkeypatch):
     path = tmp_path / "cache.json"
     cache = QueryEmbeddingCache(str(path), "model", max_entries=3)
     timestamps = iter(range(8))
-    monkeypatch.setattr("vault_rag.retrieval.query_cache.time.time", lambda: next(timestamps))
+    monkeypatch.setattr("vault_spider.retrieval.query_cache.time.time", lambda: next(timestamps))
     for index in range(8):
         cache.put(f"q{index}", [float(index)])
 

@@ -1,4 +1,4 @@
-"""Tests for vault_rag.index.store.IndexStore.sync against a real Chroma db."""
+"""Tests for vault_spider.index.store.IndexStore.sync against a real Chroma db."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from vault_rag.index.store import IndexStore
-from vault_rag.llm.openrouter import OpenRouterError
+from vault_spider.index.store import IndexStore
+from vault_spider.llm.openrouter import OpenRouterError
 
 
 def build_store(chroma_dir: Path, provider) -> IndexStore:

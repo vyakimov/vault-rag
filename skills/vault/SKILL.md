@@ -2,7 +2,7 @@
 name: vault
 description: >-
   Search, answer from, and maintain the user's Obsidian vault using the
-  vault-rag CLI (retrieval / synthesis / lint / enrich / safe note mutations).
+  vault-spider CLI (retrieval / synthesis / lint / enrich / safe note mutations).
   Use when the user asks what they know or wrote about something, or wants
   notes found, captured, enriched, filed, or vault health checked.
 ---
@@ -16,14 +16,14 @@ never exit codes.**
 
 ## Tools & preconditions
 
-- **`vault-rag`** — invoke the stable wrapper at `<repo>/bin/vault-rag ...` (or
-  `./bin/vault-rag ...` from the repo); do not construct `uv run` calls directly. The wrapper
+- **`vault-spider`** — invoke the stable wrapper at `<repo>/bin/vault-spider ...` (or
+  `./bin/vault-spider ...` from the repo); do not construct `uv run` calls directly. The wrapper
   locates the project and preserves argv, JSON output, and exit status. Config comes from
   `config.yaml` (vault root, skip dirs, distilled dir, Obsidian connection facts — see
   `config.yaml.example`). Vault resolution is explicit flags, then config, then the active
   Obsidian vault, so `--root` can be omitted everywhere.
   - *Query commands* (`retrieve`, `synthesize`, `enrich`, `stats`, `sync`, `lint`) need `.env`
-    (OpenRouter) except `stats` and `lint`. `vault-rag stats` needs no API key — it is the cheap
+    (OpenRouter) except `stats` and `lint`. `vault-spider stats` needs no API key — it is the cheap
     "is the index alive?" check.
   - *Mutation commands* (`create-note`, `read-note`, `merge-frontmatter`, `add-links`,
     `insert-related`, `move-note`, `rename-note`, `open-note`) **need the Obsidian app running**;
@@ -31,14 +31,14 @@ never exit codes.**
 - **`obsidian`** — the official CLI; read-only use here (`backlinks`, `unresolved`, `tags`).
   Errors print `Error:` text with exit 0.
 
-`vault-rag schema` (version 2) describes every command, contract, and error type in one document;
+`vault-spider schema` (version 2) describes every command, contract, and error type in one document;
 full flags are in [references/commands.md](references/commands.md).
 
 ## Decision rules
 
 **Find notes vs. answer a question**
-- User wants to *find or open* notes → `vault-rag retrieve`; present the candidate list.
-- User asks a *question* → `vault-rag synthesize`; present the answer with citations.
+- User wants to *find or open* notes → `vault-spider retrieve`; present the candidate list.
+- User asks a *question* → `vault-spider synthesize`; present the answer with citations.
 
 **Retrieval depth**
 - Proper nouns, note titles, "where did I write X" → `retrieve --mode fast --granularity document`.
@@ -64,19 +64,19 @@ user with the answer; treat it as a reason not to offer `--save`.
 **Missing notes are usually by design** — a note the user knows exists but never surfaces is most
 likely excluded on purpose: `#secret`/`#ignore` tags, a skipped folder (`vault.skip_dirs`), a
 hidden directory, or an Excalidraw drawing. Check `config.yaml` before suspecting the index. A
-recently created note just needs `vault-rag sync`.
+recently created note just needs `vault-spider sync`.
 
 **Saving distilled notes** — offer `synthesize --save` only when the answer is confidence
 high/medium AND cites ≥2 notes AND has no uncited-sentence warnings AND the question is reusable
 (research-y, not operational). Ask first; never save silently. The CLI independently refuses to
 save abstained, low-confidence, or citation-less answers and never overwrites — on `saved: false`,
-relay its warning instead of retrying. After saving, remind that `vault-rag sync` indexes it.
+relay its warning instead of retrying. After saving, remind that `vault-spider sync` indexes it.
 
 **Capture & enrichment** — new material → capture into `Inbox/`, then offer enrichment. Both are
 multi-step and have a fixed apply order and frontmatter policy: follow
 [references/capture-and-enrichment.md](references/capture-and-enrichment.md).
 
-**Maintenance** — "vault health / broken links / cleanup" → `vault-rag lint`; summarize counts,
+**Maintenance** — "vault health / broken links / cleanup" → `vault-spider lint`; summarize counts,
 then lead with the ranked checks: `dangling_targets` (the best notes to write next, by how many
 notes want them) and `empty_notes` (the most valuable stubs to fill, by inbound links). Fixes are
 the user's decisions; the only built-in fixers are `lint --fix` (adds *missing* `id`/`created`/

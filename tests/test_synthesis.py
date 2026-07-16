@@ -1,10 +1,10 @@
-"""Tests for vault_rag.synthesis.answer."""
+"""Tests for vault_spider.synthesis.answer."""
 
 from __future__ import annotations
 
 import json
 
-from vault_rag.synthesis.answer import parse_llm_json, synthesize
+from vault_spider.synthesis.answer import parse_llm_json, synthesize
 
 
 def retrieval_output():

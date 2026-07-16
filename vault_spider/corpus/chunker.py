@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from vault_rag.corpus.loader import Note
+from vault_spider.corpus.loader import Note
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 

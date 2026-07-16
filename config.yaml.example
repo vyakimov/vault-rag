@@ -1,4 +1,4 @@
-# vault-rag configuration.
+# vault-spider configuration.
 #
 # Everything installation-specific lives here: where your vault is, which folders to
 # skip, which tags mean "never index", how timestamps are written. Nothing personal is
@@ -9,7 +9,7 @@
 #
 # Secrets do NOT belong here. API keys go in .env (see .env.example).
 #
-# VAULT_RAG_CONFIG can point at this file somewhere else.
+# VAULT_SPIDER_CONFIG can point at this file somewhere else.
 
 vault:
   # Default corpus root after an explicit --root. `~` is expanded. Leave unset

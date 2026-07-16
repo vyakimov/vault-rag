@@ -1,4 +1,4 @@
-"""Tests for vault_rag.compounding.lint."""
+"""Tests for vault_spider.compounding.lint."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from vault_rag import cli
-from vault_rag.compounding.backfill_core import ULID_RE
-from vault_rag.compounding.lint import (
+from vault_spider import cli
+from vault_spider.compounding.backfill_core import ULID_RE
+from vault_spider.compounding.lint import (
     extract_frontmatter_wikilinks,
     extract_wikilinks,
     lint_vault,
 )
-from vault_rag.corpus.frontmatter import coerce_datetime, split_frontmatter
+from vault_spider.corpus.frontmatter import coerce_datetime, split_frontmatter
 
 VALID_TS = "2025-01-01T00:00:00Z"
 

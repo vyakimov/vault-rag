@@ -52,7 +52,7 @@ class OpenRouterClient:
             rerank_model=os.environ.get("OPENROUTER_RERANK_MODEL") or None,
             base_url=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
             http_referer=os.environ.get("OPENROUTER_HTTP_REFERER"),
-            app_title=os.environ.get("OPENROUTER_APP_TITLE", "Vault RAG"),
+            app_title=os.environ.get("OPENROUTER_APP_TITLE", "Vault Spider"),
         )
 
     def _headers(self) -> Dict[str, str]:

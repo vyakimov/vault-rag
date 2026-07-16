@@ -1,4 +1,4 @@
-"""Tests for vault_rag.corpus.loader (Note loading, date resolution, doc text)."""
+"""Tests for vault_spider.corpus.loader (Note loading, date resolution, doc text)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from vault_rag.corpus.chunker import document_text
-from vault_rag.corpus.loader import (
+from vault_spider.corpus.chunker import document_text
+from vault_spider.corpus.loader import (
     Note,
     has_ignore_tag,
     load_notes,

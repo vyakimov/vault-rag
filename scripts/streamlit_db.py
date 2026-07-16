@@ -4,8 +4,8 @@ from typing import Dict, Optional
 
 import streamlit as st
 
-from vault_rag import settings
-from vault_rag.index.reader import DatabaseReader
+from vault_spider import settings
+from vault_spider.index.reader import DatabaseReader
 
 
 @st.cache_resource

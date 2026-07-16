@@ -12,10 +12,10 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, NoReturn, Optional
 
-from vault_rag import settings
-from vault_rag.envelope import CliError, failure, print_json, success
-from vault_rag.llm.openrouter import OpenRouterClient, OpenRouterError
-from vault_rag.utils import validate_vault_relative_path
+from vault_spider import settings
+from vault_spider.envelope import CliError, failure, print_json, success
+from vault_spider.llm.openrouter import OpenRouterClient, OpenRouterError
+from vault_spider.utils import validate_vault_relative_path
 
 # v2: the obsctl note-mutation commands were merged into this CLI (one schema,
 # one envelope, one error-type union).
@@ -42,8 +42,8 @@ def get_provider() -> OpenRouterClient:
 
 
 def get_store(chroma_path: str, collection: str, provider: Optional[OpenRouterClient] = None):
-    # Imported lazily so `vault-rag schema` works without chromadb/model setup.
-    from vault_rag.index.store import IndexStore
+    # Imported lazily so `vault-spider schema` works without chromadb/model setup.
+    from vault_spider.index.store import IndexStore
 
     return IndexStore(
         chroma_db_path=chroma_path,
@@ -60,7 +60,7 @@ def resolve_root(explicit: Optional[str]) -> str:
         return configured
 
     # Keep registry access out of query-only imports unless root fallback needs it.
-    from vault_rag.obsidian import registry
+    from vault_spider.obsidian import registry
 
     return registry.active_vault_path()
 
@@ -377,21 +377,21 @@ def cmd_sync(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def cmd_stats(args: argparse.Namespace) -> Dict[str, Any]:
-    from vault_rag.index.reader import DatabaseReader
+    from vault_spider.index.reader import DatabaseReader
 
     reader = DatabaseReader(args.chroma_path, args.collection)
     if reader.collection is None or reader.collection.count() == 0:
         return failure(
             "stats",
             "index_empty",
-            "index is empty; run `vault-rag sync --root <dir>` first",
+            "index is empty; run `vault-spider sync --root <dir>` first",
         )
     return success("stats", result=reader.get_collection_stats())
 
 
 def _run_retrieval(store, provider, query, mode, granularity, n_results, args):
-    from vault_rag.retrieval.evidence import build_retrieval_output
-    from vault_rag.retrieval.searcher import Searcher
+    from vault_spider.retrieval.evidence import build_retrieval_output
+    from vault_spider.retrieval.searcher import Searcher
 
     searcher = Searcher(store, granularity=granularity, provider=provider)
     result = searcher.hybrid_search(
@@ -438,7 +438,7 @@ def cmd_retrieve(args: argparse.Namespace) -> Dict[str, Any]:
         return failure(
             "retrieve",
             "index_empty",
-            "index is empty; run `vault-rag sync --root <dir>` first",
+            "index is empty; run `vault-spider sync --root <dir>` first",
         )
     try:
         output, result = _run_retrieval(
@@ -552,7 +552,7 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
             return failure(
                 "synthesize",
                 "index_empty",
-                "index is empty; run `vault-rag sync --root <dir>` first",
+                "index is empty; run `vault-spider sync --root <dir>` first",
             )
         try:
             retrieval_output, _ = _run_retrieval(
@@ -563,7 +563,7 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
         except ValueError as exc:
             return failure("synthesize", "not_found", str(exc))
 
-    from vault_rag.synthesis.answer import synthesize as synthesize_answer
+    from vault_spider.synthesis.answer import synthesize as synthesize_answer
 
     try:
         synth = synthesize_answer(
@@ -574,7 +574,7 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
 
     meta: Dict[str, Any] = {}
     if args.save:
-        from vault_rag.compounding.distill import (
+        from vault_spider.compounding.distill import (
             EmptySlugError,
             InvalidSaveDirectoryError,
             save_distilled_note,
@@ -588,7 +588,7 @@ def cmd_synthesize(args: argparse.Namespace) -> Dict[str, Any]:
         synth["saved_path"] = save_result["saved_path"]
         synth.setdefault("warnings", []).extend(save_result["warnings"])
         if save_result["saved"]:
-            meta["hint"] = "run vault-rag sync to index the distilled note"
+            meta["hint"] = "run vault-spider sync to index the distilled note"
 
     synth["retrieval"] = retrieval_output
     return success("synthesize", result=synth, meta=meta)
@@ -611,8 +611,8 @@ def cmd_enrich(args: argparse.Namespace) -> Dict[str, Any]:
             "enrich", "invalid_arguments", "provide exactly one of --note or --stdin"
         )
 
-    from vault_rag.corpus.frontmatter import split_frontmatter
-    from vault_rag.enrich.planner import EnrichInput, plan
+    from vault_spider.corpus.frontmatter import split_frontmatter
+    from vault_spider.enrich.planner import EnrichInput, plan
 
     args.root = resolve_root(args.root)
     if not os.path.isdir(args.root):
@@ -652,7 +652,7 @@ def cmd_enrich(args: argparse.Namespace) -> Dict[str, Any]:
     store = get_store(args.chroma_path, args.collection, provider)
     if store.collection.count() == 0:
         return failure(
-            "enrich", "index_empty", "index is empty; run `vault-rag sync --root <dir>` first"
+            "enrich", "index_empty", "index is empty; run `vault-spider sync --root <dir>` first"
         )
 
     inp = EnrichInput(
@@ -741,7 +741,7 @@ def cmd_lint(args: argparse.Namespace) -> Dict[str, Any]:
     if not os.path.isdir(args.root):
         return failure("lint", "invalid_arguments", f"root directory not found: {args.root}")
 
-    from vault_rag.compounding.lint import (
+    from vault_spider.compounding.lint import (
         fix_missing_frontmatter,
         fix_naive_timestamps,
         lint_vault,
@@ -774,11 +774,11 @@ def cmd_lint(args: argparse.Namespace) -> Dict[str, Any]:
 
 
 def _obsidian_handler(args: argparse.Namespace) -> Dict[str, Any]:
-    """Route a note-mutation subcommand to vault_rag.obsidian with the
+    """Route a note-mutation subcommand to vault_spider.obsidian with the
     configured connection facts (CLI flags override config.yaml).
 
     Imported lazily so the query commands never load the mutation stack."""
-    from vault_rag.obsidian import backend, notes, registry
+    from vault_spider.obsidian import backend, notes, registry
 
     try:
         args.path = validate_vault_relative_path(args.path, label="--path")
@@ -819,7 +819,7 @@ def _add_filter_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = JsonArgumentParser(prog="vault-rag", description="Vault RAG JSON CLI")
+    parser = JsonArgumentParser(prog="vault-spider", description="Vault Spider JSON CLI")
     parser.add_argument(
         "--chroma-path",
         default=settings.chroma_path(),

@@ -1,12 +1,12 @@
-"""Tests for vault_rag.retrieval.evidence and the mixed-mode per-note cap."""
+"""Tests for vault_spider.retrieval.evidence and the mixed-mode per-note cap."""
 
 from __future__ import annotations
 
 from collections import Counter
 
-from vault_rag.index.store import IndexStore
-from vault_rag.retrieval.evidence import build_retrieval_output
-from vault_rag.retrieval.searcher import Searcher
+from vault_spider.index.store import IndexStore
+from vault_spider.retrieval.evidence import build_retrieval_output
+from vault_spider.retrieval.searcher import Searcher
 
 
 def make_row(note_id, chunk_id, *, bm25, semantic, reranker=None, rerank_rank=None,

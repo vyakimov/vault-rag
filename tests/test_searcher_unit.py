@@ -1,8 +1,8 @@
 import pandas as pd
 
-from vault_rag.index.store import IndexStore
-from vault_rag.retrieval.searcher import Searcher
-from vault_rag.utils import tokenize_for_bm25
+from vault_spider.index.store import IndexStore
+from vault_spider.retrieval.searcher import Searcher
+from vault_spider.utils import tokenize_for_bm25
 
 
 def test_unquoted_keyword_scores_match_bm25(tmp_path, tiny_vault, fake_provider):

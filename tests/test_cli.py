@@ -1,10 +1,10 @@
-"""Tests for the vault-rag CLI, driven in-process with a fake provider."""
+"""Tests for the vault-spider CLI, driven in-process with a fake provider."""
 
 from __future__ import annotations
 
 import json
 
-from vault_rag import cli
+from vault_spider import cli
 
 
 def run(capsys, argv):
@@ -31,7 +31,7 @@ class TestSchema:
         must all name the same commands — drift here desyncs the contract."""
         import argparse
 
-        from vault_rag.obsidian import notes
+        from vault_spider.obsidian import notes
 
         code, envelope = run(capsys, ["schema"])
         schema_commands = set(envelope["result"]["commands"])

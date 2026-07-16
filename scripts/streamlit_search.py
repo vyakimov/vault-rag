@@ -10,11 +10,11 @@ from typing import Dict
 import streamlit as st
 from streamlit_models import get_store_and_searcher
 
-from vault_rag.config import DEFAULT_SEARCH_PARAMS
-from vault_rag.retrieval.evidence import build_retrieval_output
+from vault_spider.config import DEFAULT_SEARCH_PARAMS
+from vault_spider.retrieval.evidence import build_retrieval_output
 
 st.set_page_config(
-    page_title="Vault RAG",
+    page_title="Vault Spider",
     page_icon="🗂️",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -87,7 +87,7 @@ def display_candidate(index: int, candidate: Dict[str, object]):
 
 
 def main():
-    st.title("🗂️ Vault RAG")
+    st.title("🗂️ Vault Spider")
     st.caption("Retrieve Markdown notes using BM25, embeddings, reranking, and recency.")
 
     store, searcher, init_error = get_store_and_searcher()

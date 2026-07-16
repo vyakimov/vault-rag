@@ -1,4 +1,4 @@
-"""Smoke tests for the stable vault-rag wrapper entrypoint."""
+"""Smoke tests for the stable vault-spider wrapper entrypoint."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-WRAPPER = REPO_ROOT / "bin" / "vault-rag"
+WRAPPER = REPO_ROOT / "bin" / "vault-spider"
 
 
 def test_wrapper_forwards_argv_and_exit_status_from_outside_repo(tmp_path: Path) -> None:
@@ -48,7 +48,7 @@ def test_wrapper_forwards_argv_and_exit_status_from_outside_repo(tmp_path: Path)
             "run",
             "--project",
             str(REPO_ROOT),
-            "vault-rag",
+            "vault-spider",
             "retrieve",
             "--query",
             "two words",

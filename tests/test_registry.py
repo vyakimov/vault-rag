@@ -8,9 +8,9 @@ import os
 import pytest
 from conftest import write_registry
 
-from vault_rag import cli
-from vault_rag.envelope import CliError
-from vault_rag.obsidian import registry
+from vault_spider import cli
+from vault_spider.envelope import CliError
+from vault_spider.obsidian import registry
 
 
 class TestRegistryParsing:

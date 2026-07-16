@@ -1,11 +1,11 @@
-"""Tests for pure helpers in vault_rag.utils."""
+"""Tests for pure helpers in vault_spider.utils."""
 
 from __future__ import annotations
 
 import pytest
 from nltk.stem import PorterStemmer
 
-from vault_rag.utils import (
+from vault_spider.utils import (
     DEFAULT_STOP_WORDS,
     decimal_to_base,
     hash_string,

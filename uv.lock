@@ -2178,7 +2178,7 @@ wheels = [
 ]
 
 [[package]]
-name = "vault-rag"
+name = "vault-spider"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

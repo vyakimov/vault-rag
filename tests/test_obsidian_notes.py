@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import pytest
 from conftest import write_config, write_registry
 
-from vault_rag import cli
-from vault_rag.envelope import CliError
-from vault_rag.obsidian import backend as obsidian_backend
+from vault_spider import cli
+from vault_spider.envelope import CliError
+from vault_spider.obsidian import backend as obsidian_backend
 
 
 class FakeBackend:

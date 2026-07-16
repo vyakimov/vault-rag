@@ -2,7 +2,7 @@ from dataclasses import fields
 
 import pytest
 
-from vault_rag.config import DEFAULT_SEARCH_PARAMS, SEARCH_CONFIG, SearchParams
+from vault_spider.config import DEFAULT_SEARCH_PARAMS, SEARCH_CONFIG, SearchParams
 
 
 def test_with_overrides_ignores_none_and_applies_values():

@@ -2,28 +2,28 @@
 
 Full flags for the commands the `vault` skill orchestrates. Each command prints one JSON
 envelope: `{"ok": true, "action", "result", "meta"}` or `{"ok": false, "action", "error": {...}}`.
-Check `"ok"`, not exit codes. Run `./bin/vault-rag schema` for the machine-readable version
+Check `"ok"`, not exit codes. Run `./bin/vault-spider schema` for the machine-readable version
 (`version: 2` — one schema covers query and mutation commands alike).
 
 Error types (shared union): `invalid_arguments`, `index_empty`, `provider_error`, `not_found`,
 `internal_error`, `obsidian_not_running`, `backend_error`, `already_exists`, `ambiguous_target`,
 `config_mismatch`, `contract_violation`.
 
-## Query & maintenance commands (run via `./bin/vault-rag`)
+## Query & maintenance commands (run via `./bin/vault-spider`)
 
 Vault resolution is explicit flags, then `config.yaml`, then the active Obsidian vault.
 `config_mismatch` means config and Obsidian disagree about the vault; surface it verbatim and
 tell the user to fix config.
 
 ```
-./bin/vault-rag schema
-./bin/vault-rag sync [--root <dir>] [--reset | --dry-run]
-./bin/vault-rag stats                              # index statistics; no API key needed
-./bin/vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10] [FILTERS]
-./bin/vault-rag synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json]
+./bin/vault-spider schema
+./bin/vault-spider sync [--root <dir>] [--reset | --dry-run]
+./bin/vault-spider stats                              # index statistics; no API key needed
+./bin/vault-spider retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10] [FILTERS]
+./bin/vault-spider synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json]
                            [--n-context 8] [--save [--root <dir>] [--save-dir Distilled]] [FILTERS]
-./bin/vault-rag lint [--root <dir>] [--format json|text] [--fix] [--fix-timestamps]
-./bin/vault-rag enrich (--note <vault-rel-path> | --stdin) [--root <dir>]
+./bin/vault-spider lint [--root <dir>] [--format json|text] [--fix] [--fix-timestamps]
+./bin/vault-spider enrich (--note <vault-rel-path> | --stdin) [--root <dir>]
                        [--intent "..."] [--source-type transcript|web|pdf|manual] [--source-url ...] [--title ...]
 
 FILTERS (retrieve & synthesize):
@@ -66,14 +66,14 @@ FILTERS (retrieve & synthesize):
 ## Mutation commands (same CLI; Obsidian app must be running)
 
 ```
-./bin/vault-rag create-note   --path "Inbox/Foo.md" [--content ...|--content-file f|-] [--frontmatter '{...}'] [--auto-id] [--dry-run]
-./bin/vault-rag read-note     --path "..." [--frontmatter-only|--body-only]
-./bin/vault-rag merge-frontmatter --path "..." --patch '{"type":"interview","aliases":["Alias"]}' [--dry-run]
-./bin/vault-rag add-links     --path "..." --links '[{"target":"Some Note","anchor_text":"some note","line":12}]' [--dry-run]
-./bin/vault-rag insert-related --path "..." --targets '["Some Note"]' [--dry-run]
-./bin/vault-rag move-note     --path "Inbox/Foo.md" --to "Research/"       [--dry-run]
-./bin/vault-rag rename-note   --path "Inbox/Foo.md" --name "Better Title"  [--dry-run]
-./bin/vault-rag open-note     --path "..."
+./bin/vault-spider create-note   --path "Inbox/Foo.md" [--content ...|--content-file f|-] [--frontmatter '{...}'] [--auto-id] [--dry-run]
+./bin/vault-spider read-note     --path "..." [--frontmatter-only|--body-only]
+./bin/vault-spider merge-frontmatter --path "..." --patch '{"type":"interview","aliases":["Alias"]}' [--dry-run]
+./bin/vault-spider add-links     --path "..." --links '[{"target":"Some Note","anchor_text":"some note","line":12}]' [--dry-run]
+./bin/vault-spider insert-related --path "..." --targets '["Some Note"]' [--dry-run]
+./bin/vault-spider move-note     --path "Inbox/Foo.md" --to "Research/"       [--dry-run]
+./bin/vault-spider rename-note   --path "Inbox/Foo.md" --name "Better Title"  [--dry-run]
+./bin/vault-spider open-note     --path "..."
 ```
 
 - Every mutating command supports `--dry-run` (returns the diff, makes no backend mutation).
@@ -100,5 +100,5 @@ obsidian tags
 ```
 
 Strip leading `Loading updated...` / `Your Obsidian installer...` noise lines; treat an `Error:`
-line as failure even though exit code is 0. (For reading a note, prefer `vault-rag read-note` —
+line as failure even though exit code is 0. (For reading a note, prefer `vault-spider read-note` —
 it returns parsed frontmatter in the JSON envelope.)

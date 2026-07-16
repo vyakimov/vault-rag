@@ -15,11 +15,11 @@ import chromadb
 from nltk.stem import PorterStemmer
 from rank_bm25 import BM25Okapi
 
-from vault_rag.config import BM25_CONFIG
-from vault_rag.corpus.chunker import document_text, section_text, split_sections
-from vault_rag.corpus.loader import Note, load_notes
-from vault_rag.llm.openrouter import OpenRouterClient, OpenRouterError
-from vault_rag.utils import DEFAULT_STOP_WORDS, tokenize_for_bm25
+from vault_spider.config import BM25_CONFIG
+from vault_spider.corpus.chunker import document_text, section_text, split_sections
+from vault_spider.corpus.loader import Note, load_notes
+from vault_spider.llm.openrouter import OpenRouterClient, OpenRouterError
+from vault_spider.utils import DEFAULT_STOP_WORDS, tokenize_for_bm25
 
 GRANULARITIES = ("document", "section")
 
@@ -87,7 +87,7 @@ class IndexStore:
         ):
             raise ValueError(
                 "Collection was built with a different embedding model. "
-                "Run `vault-rag sync --reset` to rebuild it."
+                "Run `vault-spider sync --reset` to rebuild it."
             )
         return collection
 

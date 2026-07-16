@@ -1,9 +1,9 @@
-"""Tests for vault_rag.corpus.identity."""
+"""Tests for vault_spider.corpus.identity."""
 
 from __future__ import annotations
 
-from vault_rag.corpus.identity import is_ulid, resolve_note_id
-from vault_rag.utils import hash_string
+from vault_spider.corpus.identity import is_ulid, resolve_note_id
+from vault_spider.utils import hash_string
 
 
 class TestResolveNoteId:

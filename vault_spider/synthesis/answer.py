@@ -10,7 +10,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from vault_rag.llm.openrouter import OpenRouterClient
+from vault_spider.llm.openrouter import OpenRouterClient
 
 _CODE_FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 

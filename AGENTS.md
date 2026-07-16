@@ -1,6 +1,6 @@
 # Assistant.md
 
-This repository is **Vault RAG**, a retrieval **and mutation** system for an Obsidian vault of
+This repository is **Vault Spider**, a retrieval **and mutation** system for an Obsidian vault of
 Markdown notes — one CLI for querying and modifying the vault.
 
 The vault itself is never committed. Its location, and everything else installation-specific,
@@ -11,8 +11,8 @@ lives in `config.yaml` (gitignored; copy `config.yaml.example`). Secrets live in
 The project indexes `.md` files from the vault into ChromaDB, builds BM25 indexes, and exposes
 hybrid retrieval and answer synthesis with stable JSON contracts. It also carries the vault's
 write path: contract-enforcing note mutations executed through the running Obsidian app (the
-former standalone `obsctl` tool, merged into this CLI). It is organized as the `vault_rag`
-Python package with a JSON-only CLI (`vault-rag`) plus a Streamlit UI.
+former standalone `obsctl` tool, merged into this CLI). It is organized as the `vault_spider`
+Python package with a JSON-only CLI (`vault-spider`) plus a Streamlit UI.
 
 The read path (indexing, retrieval, lint) works on vault files directly; the write path goes
 through the official Obsidian CLI so wikilinks update on move/rename, unknown frontmatter keys
@@ -25,11 +25,11 @@ by the `granularity` metadata field.
 
 ## Key Commands
 
-- `./bin/vault-rag` is the stable executable wrapper for the CLI. It locates this project and
-  delegates to `uv run vault-rag`, so its absolute path can be called from outside the repository.
-- `./bin/vault-rag schema`
+- `./bin/vault-spider` is the stable executable wrapper for the CLI. It locates this project and
+  delegates to `uv run vault-spider`, so its absolute path can be called from outside the repository.
+- `./bin/vault-spider schema`
   - Prints the machine-readable command + contract schema (`version: 2`).
-- `./bin/vault-rag sync [--root <dir>] [--reset]`  (`--root` defaults to `vault.root` in
+- `./bin/vault-spider sync [--root <dir>] [--reset]`  (`--root` defaults to `vault.root` in
   `config.yaml`, then the active Obsidian vault)
   - Incremental sync: adds new notes, re-embeds changed or moved notes, deletes removed notes.
     Notes sharing a duplicate frontmatter `id` are skipped after the first and reported in
@@ -37,20 +37,20 @@ by the `granularity` metadata field.
   - Failure-safe ordering: old entries are deleted only after all new embeddings have been
     computed and validated, so a provider failure mid-sync leaves the existing index usable.
   - `--reset` rebuilds the collection from scratch (needed once after an entry-shape change).
-- `./bin/vault-rag stats` — index statistics (no API key needed).
-- `./bin/vault-rag retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
+- `./bin/vault-spider stats` — index statistics (no API key needed).
+- `./bin/vault-spider retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
   - Returns the retrieval output contract (candidates with score breakdown). Defaults: `fast`, `document`.
     `mixed` searches the section pool with a 3-sections-per-note cap (it does not mix in document entries).
   - `fast` skips reranking; `thorough` reranks the top candidates.
-- `./bin/vault-rag synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json] [--n-context 8] [--save --root <dir> [--save-dir Distilled]]`
+- `./bin/vault-spider synthesize --query "..." [--mode thorough] [--granularity mixed] [--retrieval file.json] [--n-context 8] [--save --root <dir> [--save-dir Distilled]]`
   - Retrieves (defaults `thorough`/`mixed`) then synthesizes a cited answer. `--retrieval` reuses a
     prior `retrieve` envelope/contract and skips retrieval. Abstains when the notes lack the answer.
   - `--save` persists a high-quality answer as a create-only **distilled note** (`type: distilled`)
     under `<root>/<save-dir>`. `--save-dir` must be a vault-relative path resolving inside the
     root. Skips (with a warning) when the answer abstained, is low-confidence, is empty, has no
     citations, or the target exists. Distilled notes are regenerable pointers to their
-    sources — raw notes always win on conflict. Run `vault-rag sync` afterward to index it.
-- `./bin/vault-rag lint --root <dir> [--format json|text] [--fix] [--fix-timestamps]`
+    sources — raw notes always win on conflict. Run `vault-spider sync` afterward to index it.
+- `./bin/vault-spider lint --root <dir> [--format json|text] [--fix] [--fix-timestamps]`
   - Read-only corpus health report (no LLM or index needed): missing frontmatter fields,
     invalid/naive timestamps, duplicate ids, duplicate titles, broken wikilinks, `dangling_targets`
     (unresolved link targets ranked by how many notes want them — the best next notes to write),
@@ -63,7 +63,7 @@ by the `granularity` metadata field.
     `--fix-timestamps` additionally rewrites *naive* `created`/`updated`/`date` as offset-aware —
     a naive timestamp is local wall-clock time, so the local offset is attached with historical
     DST; unparseable values are skipped, never guessed.
-- `./bin/vault-rag enrich --root <dir> (--note <path> | --stdin) [--intent ...] [--source-type transcript|web|pdf|manual] [--source-url ...] [--title ...]`
+- `./bin/vault-spider enrich --root <dir> (--note <path> | --stdin) [--intent ...] [--source-type transcript|web|pdf|manual] [--source-url ...] [--title ...]`
   - App-agnostic **enrichment planner**: retrieves a note's neighborhood and proposes a title,
     frontmatter patch (`type`/`aliases`/`source_type`/`source_url` only), inline links, related
     candidates, and placement — as JSON. It **never mutates** files or the index; apply a plan
@@ -73,7 +73,7 @@ by the `granularity` metadata field.
     confidences dropped with warnings). `--note` must be a vault-relative `.md` path resolving
     inside `--root`.
 - **Note mutations** — `create-note`, `read-note`, `merge-frontmatter`, `add-links`,
-  `insert-related`, `move-note`, `rename-note`, `open-note` (all `./bin/vault-rag <command>`).
+  `insert-related`, `move-note`, `rename-note`, `open-note` (all `./bin/vault-spider <command>`).
   - Executed through the official Obsidian CLI; **the Obsidian app must be running** (macOS only).
     Vault resolution is flags > `config.yaml` > the active vault. Obsidian's registry bridges the
     read path's `vault.root` filesystem path to the mutation backend's vault name and fails with
@@ -108,7 +108,7 @@ This holds for *every* failure: argparse errors (bad flags, missing/unknown comm
 converted to `invalid_arguments` envelopes rather than printing usage text.
 Error types: `invalid_arguments`, `index_empty`, `provider_error`, `not_found`, `internal_error`,
 `obsidian_not_running`, `backend_error`, `already_exists`, `ambiguous_target`,
-`config_mismatch`, `contract_violation`. The schema (`vault-rag schema`) is `version: 2` — the version where the
+`config_mismatch`, `contract_violation`. The schema (`vault-spider schema`) is `version: 2` — the version where the
 mutation commands were merged in. In the schema, `mutates_state` is always a boolean ("can this
 command write?"); the optional `mutates` string qualifies what and when.
 
@@ -131,9 +131,9 @@ Install dependencies with `uv sync`.
 
 ## Architecture
 
-The `vault_rag` package is layered:
+The `vault_spider` package is layered:
 
-1. `vault_rag/corpus/`
+1. `vault_spider/corpus/`
    - `frontmatter.py` — YAML frontmatter split, tag normalization, datetime coercion.
    - `identity.py` — note id resolution (frontmatter `id`/ULID, else path hash).
    - `loader.py` — `load_notes(root)` → `Note` dataclasses (skips `#ignore`/`#secret` in the
@@ -143,28 +143,28 @@ The `vault_rag` package is layered:
      compressed drawing data rather than prose).
    - `chunker.py` — deterministic `split_sections` plus `document_text` / `section_text`.
 
-2. `vault_rag/index/`
+2. `vault_spider/index/`
    - `store.py` — `IndexStore` with `sync(root, reset)`; maintains the Chroma collection and two
      in-memory BM25 indexes (document + section), diffing by `note_id` + `content_hash`.
    - `reader.py` — read-only Chroma access for the Notes UI.
 
-3. `vault_rag/retrieval/`
+3. `vault_spider/retrieval/`
    - `fusion.py` — pure RRF / z-score-sigmoid / min-max fusion.
    - `searcher.py` — `Searcher.hybrid_search` (embeddings + BM25 + fusion + optional rerank +
      recency); `fast`/`thorough` modes, `document`/`section`/`mixed` granularity.
    - `evidence.py` — builds the retrieval output contract (candidate objects + deterministic `why`).
 
-4. `vault_rag/synthesis/`
+4. `vault_spider/synthesis/`
    - `answer.py` — `synthesize()` turns a retrieval contract into a cited answer with abstention;
      robust JSON parsing / truncation repair. Malformed model output fails closed: a non-boolean
      `abstained` or non-string `answer` is treated as an abstention, never presented as grounded.
 
-5. `vault_rag/compounding/`
+5. `vault_spider/compounding/`
    - `distill.py` — `save_distilled_note()` for `synthesize --save`.
    - `lint.py` — `lint_vault()` read-only health checks.
-   `vault_rag/enrich/planner.py` — `plan()` enrichment planner (read-only; proposes, never mutates).
+   `vault_spider/enrich/planner.py` — `plan()` enrichment planner (read-only; proposes, never mutates).
 
-6. `vault_rag/obsidian/`
+6. `vault_spider/obsidian/`
    - `backend.py` — invocation layer for the official Obsidian CLI: binary discovery, vault
      targeting, noise stripping, error mapping (`obsidian_not_running`, `not_found`, ...).
    - `notes.py` — the mutation commands: dry-run, no-op detection, collision safety, ambiguity
@@ -172,13 +172,13 @@ The `vault_rag` package is layered:
      untyped frontmatter parser on purpose (the YAML-typed `corpus/frontmatter.py` would not
      round-trip values faithfully).
 
-7. `vault_rag/llm/openrouter.py` — embeddings, rerank, and chat via OpenRouter. Responses are
+7. `vault_spider/llm/openrouter.py` — embeddings, rerank, and chat via OpenRouter. Responses are
    strictly validated (index coverage, duplicate detection, dimensions, finite values); anything
    malformed raises `OpenRouterError` (`provider_error`) instead of misaligning the index.
 
-8. `vault_rag/cli.py` + `vault_rag/envelope.py` — the JSON CLI, envelope helpers, and `CliError`.
+8. `vault_spider/cli.py` + `vault_spider/envelope.py` — the JSON CLI, envelope helpers, and `CliError`.
 
-9. `scripts/streamlit_*.py` — Streamlit pages that import from `vault_rag`.
+9. `scripts/streamlit_*.py` — Streamlit pages that import from `vault_spider`.
 
 `tools/backfill.py` — standalone one-time migration that adds `id`/`created`/`updated`
 frontmatter to existing notes (dry-run by default; `--apply` to write; never touches bodies).
@@ -201,12 +201,12 @@ All of these are configurable in `config.yaml`; the values below are the default
 
 ## Development Notes
 
-- Intra-package imports are absolute (`from vault_rag.corpus import loader`); no import fallbacks.
-- `vault_rag/utils.py::validate_vault_relative_path` is the single gate for user-supplied vault
+- Intra-package imports are absolute (`from vault_spider.corpus import loader`); no import fallbacks.
+- `vault_spider/utils.py::validate_vault_relative_path` is the single gate for user-supplied vault
   paths (mutation `--path`/`--to`, `--save-dir`, `enrich --note`) — route any new path argument
   through it rather than validating ad hoc.
 - Metadata stored per entry: `note_id`, `granularity`, `title`, `path`, `folder`, `tags`, `date`,
   `created`, `updated`, `note_type`, `content_hash`, `heading`, `line_start`, `line_end`, `source`.
 - Retrieval/synthesis JSON contracts are stable; downstream tooling depends on them (see
-  `vault-rag schema`).
+  `vault-spider schema`).
 - The LLM relevance judge was removed; abstention now lives in synthesis.

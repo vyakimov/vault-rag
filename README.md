@@ -1,4 +1,4 @@
-# vault-rag
+# vault-spider
 
 Hybrid retrieval, cited answers, health checks, and safe note mutations for an Obsidian vault —
 one JSON CLI.
@@ -25,32 +25,32 @@ Edit `.env` with an [OpenRouter](https://openrouter.ai/keys) key. Set `vault.roo
 if you do not want to use Obsidian's active vault by default. Then:
 
 ```bash
-./bin/vault-rag sync            # index the vault (embeds every note; takes a few minutes)
-./bin/vault-rag stats
+./bin/vault-spider sync            # index the vault (embeds every note; takes a few minutes)
+./bin/vault-spider stats
 ```
 
 ## Use
 
 ```bash
 # Find notes
-./bin/vault-rag retrieve --query "wireguard setup" --mode fast
+./bin/vault-spider retrieve --query "wireguard setup" --mode fast
 
 # Answer a question, with citations — abstains rather than guessing
-./bin/vault-rag synthesize --query "How did I set up the VPN, and why that way?"
+./bin/vault-spider synthesize --query "How did I set up the VPN, and why that way?"
 
 # Vault health
-./bin/vault-rag lint --format text
+./bin/vault-spider lint --format text
 ```
 
-`bin/vault-rag` is the stable executable entrypoint for callers that need to whitelist one file.
-It forwards argv to the existing `uv run vault-rag` command and locates the project independently
+`bin/vault-spider` is the stable executable entrypoint for callers that need to whitelist one file.
+It forwards argv to the existing `uv run vault-spider` command and locates the project independently
 of the caller's working directory. Call it by absolute path from anywhere, for example:
 
 ```bash
-/path/to/vault-rag/bin/vault-rag schema
+/path/to/vault-spider/bin/vault-spider schema
 ```
 
-`vault-rag schema` prints the full machine-readable command and contract schema. All output is
+`vault-spider schema` prints the full machine-readable command and contract schema. All output is
 `{"ok": true, "action", "result", "meta"}` on success and `{"ok": false, "action", "error"}` on
 failure (exit 1) — **check `ok`, not the exit code.** Every failure is that envelope, including
 bad flags and unknown commands — argparse usage text never reaches stdout.
@@ -69,15 +69,15 @@ exactly as if you had edited in the app. **The Obsidian app must be running** fo
 (macOS only):
 
 ```bash
-./bin/vault-rag create-note   --path "Inbox/New Idea.md" --content-file draft.txt \
+./bin/vault-spider create-note   --path "Inbox/New Idea.md" --content-file draft.txt \
                               --auto-id --frontmatter '{"type":"idea"}'
-./bin/vault-rag read-note     --path "Inbox/New Idea.md" [--frontmatter-only|--body-only]
-./bin/vault-rag merge-frontmatter --path "..." --patch '{"type":"idea","aliases":["Alias"]}'
-./bin/vault-rag add-links     --path "..." --links '[{"target":"Some Note","anchor_text":"some note","line":12}]'
-./bin/vault-rag insert-related --path "..." --targets '["Some Note"]'
-./bin/vault-rag move-note     --path "Inbox/New Idea.md" --to "Research/"
-./bin/vault-rag rename-note   --path "Inbox/New Idea.md" --name "Better Title"
-./bin/vault-rag open-note     --path "..."
+./bin/vault-spider read-note     --path "Inbox/New Idea.md" [--frontmatter-only|--body-only]
+./bin/vault-spider merge-frontmatter --path "..." --patch '{"type":"idea","aliases":["Alias"]}'
+./bin/vault-spider add-links     --path "..." --links '[{"target":"Some Note","anchor_text":"some note","line":12}]'
+./bin/vault-spider insert-related --path "..." --targets '["Some Note"]'
+./bin/vault-spider move-note     --path "Inbox/New Idea.md" --to "Research/"
+./bin/vault-spider rename-note   --path "Inbox/New Idea.md" --name "Better Title"
+./bin/vault-spider open-note     --path "..."
 ```
 
 Vault resolution is explicit flags (`--root`/`--vault`), then `config.yaml`, then Obsidian's active
@@ -150,8 +150,8 @@ Link resolution follows Obsidian: frontmatter links (`parents: "[[Daily Notes]]"
 Two opt-in fixers write to the vault:
 
 ```bash
-./bin/vault-rag lint --fix              # add MISSING id/created/updated (never edits a value)
-./bin/vault-rag lint --fix-timestamps   # rewrite naive timestamps as offset-aware
+./bin/vault-spider lint --fix              # add MISSING id/created/updated (never edits a value)
+./bin/vault-spider lint --fix-timestamps   # rewrite naive timestamps as offset-aware
 ```
 
 ## Compounding

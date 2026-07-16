@@ -5,7 +5,7 @@ collision safety, ambiguity rejection, idempotent link/alias merging, and
 data-contract enforcement (`id`/`created` are immutable once set).
 
 Handlers take the parsed argparse namespace and return a full envelope, raising
-:class:`~vault_rag.envelope.CliError` for typed failures.
+:class:`~vault_spider.envelope.CliError` for typed failures.
 """
 
 from __future__ import annotations
@@ -16,12 +16,12 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
-from vault_rag.compounding.backfill_core import fresh_identity, now_timestamp
-from vault_rag.compounding.lint import WIKILINK_RE
-from vault_rag.corpus.chunker import HEADING_RE
-from vault_rag.envelope import CliError, success
-from vault_rag.obsidian import backend
-from vault_rag.utils import validate_vault_relative_path
+from vault_spider.compounding.backfill_core import fresh_identity, now_timestamp
+from vault_spider.compounding.lint import WIKILINK_RE
+from vault_spider.corpus.chunker import HEADING_RE
+from vault_spider.envelope import CliError, success
+from vault_spider.obsidian import backend
+from vault_spider.utils import validate_vault_relative_path
 
 CONTRACT_IMMUTABLE = ("id", "created")
 _PATCH_EMPTY_REJECT = ("", [], None)
@@ -46,7 +46,7 @@ def _link_target(value: Any, label: str) -> str:
 # ---------------------------------------------------------------------------
 # Minimal frontmatter parsing.
 #
-# Deliberately NOT vault_rag.corpus.frontmatter: that parser is YAML-typed
+# Deliberately NOT vault_spider.corpus.frontmatter: that parser is YAML-typed
 # (dates become datetime objects, quotes are normalized), while the mutation
 # contract needs untyped, round-trip-faithful values — what is compared and
 # written must be exactly what sits in the file.

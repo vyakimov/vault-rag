@@ -8,9 +8,9 @@ The file is **optional**: without it the built-in defaults apply, and they are d
 vault-agnostic, so a fresh clone works with no config at all. Copy ``config.yaml.example``
 to ``config.yaml`` (gitignored) and edit. Secrets stay in ``.env`` — never here.
 
-``VAULT_RAG_CONFIG`` overrides the path, for setups that keep the file elsewhere.
+``VAULT_SPIDER_CONFIG`` overrides the path, for setups that keep the file elsewhere.
 
-Not to be confused with :mod:`vault_rag.config`, which holds retrieval/ranking tuning
+Not to be confused with :mod:`vault_spider.config`, which holds retrieval/ranking tuning
 constants that are part of the algorithm, not of an installation.
 """
 
@@ -55,7 +55,7 @@ class ConfigError(ValueError):
 
 
 def config_path() -> Path:
-    override = os.environ.get("VAULT_RAG_CONFIG")
+    override = os.environ.get("VAULT_SPIDER_CONFIG")
     return Path(override).expanduser() if override else DEFAULT_CONFIG_PATH
 
 

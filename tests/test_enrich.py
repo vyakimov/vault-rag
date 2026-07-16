@@ -1,12 +1,12 @@
-"""Tests for vault_rag.enrich.planner."""
+"""Tests for vault_spider.enrich.planner."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 
-from vault_rag.enrich.planner import EnrichInput, plan, postprocess
-from vault_rag.index.store import IndexStore
+from vault_spider.enrich.planner import EnrichInput, plan, postprocess
+from vault_spider.index.store import IndexStore
 
 
 def make_input(body="Meeting with Atlas about Beta today.\n", path="Inbox/raw.md",

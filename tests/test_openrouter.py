@@ -1,12 +1,12 @@
-"""Tests for vault_rag.llm.openrouter request/response hardening (no network)."""
+"""Tests for vault_spider.llm.openrouter request/response hardening (no network)."""
 
 from __future__ import annotations
 
 import httpx
 import pytest
 
-from vault_rag.llm import openrouter
-from vault_rag.llm.openrouter import OpenRouterClient, OpenRouterError
+from vault_spider.llm import openrouter
+from vault_spider.llm.openrouter import OpenRouterClient, OpenRouterError
 
 
 def make_client() -> OpenRouterClient:

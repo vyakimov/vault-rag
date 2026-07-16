@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from vault_rag import settings
-from vault_rag.obsidian import registry
+from vault_spider import settings
+from vault_spider.obsidian import registry
 
 EMBED_DIM = 16
 
@@ -20,10 +20,10 @@ EMBED_DIM = 16
 @pytest.fixture
 def isolated_config(tmp_path: Path, monkeypatch):
     """Point settings at a temp config.yaml and reset the cache around the test."""
-    monkeypatch.setenv("VAULT_RAG_CONFIG", str(tmp_path / "config.yaml"))
+    monkeypatch.setenv("VAULT_SPIDER_CONFIG", str(tmp_path / "config.yaml"))
     settings.reset()
     yield tmp_path
-    monkeypatch.delenv("VAULT_RAG_CONFIG", raising=False)
+    monkeypatch.delenv("VAULT_SPIDER_CONFIG", raising=False)
     settings.reset()
 
 

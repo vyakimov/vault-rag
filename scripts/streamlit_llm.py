@@ -6,9 +6,9 @@ from typing import Dict
 import streamlit as st
 from streamlit_models import get_openrouter_client
 
-from vault_rag import settings
-from vault_rag.index.reader import DatabaseReader
-from vault_rag.synthesis.answer import synthesize
+from vault_spider import settings
+from vault_spider.index.reader import DatabaseReader
+from vault_spider.synthesis.answer import synthesize
 
 st.markdown("# Synthesize")
 

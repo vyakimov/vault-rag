@@ -1,4 +1,4 @@
-"""Tests for vault_rag.compounding.distill (synthesize --save)."""
+"""Tests for vault_spider.compounding.distill (synthesize --save)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import re
 
 import pytest
 
-from vault_rag.compounding import distill
-from vault_rag.corpus.frontmatter import split_frontmatter
+from vault_spider.compounding import distill
+from vault_spider.corpus.frontmatter import split_frontmatter
 
 ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
 

@@ -4,7 +4,7 @@ Given raw note text plus optional capture context, retrieve its neighborhood
 and emit a structured *enrichment plan* (proposed title, metadata, links,
 related notes, placement). This module reasons and proposes only — it NEVER
 mutates files or the index. Applying a plan is the job of the CLI's note
-mutation commands (vault_rag.obsidian).
+mutation commands (vault_spider.obsidian).
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from typing import Any, Dict, List, Optional
 
 from nltk.stem import PorterStemmer
 
-from vault_rag.synthesis.answer import parse_llm_json
-from vault_rag.utils import DEFAULT_STOP_WORDS, tokenize_for_bm25
+from vault_spider.synthesis.answer import parse_llm_json
+from vault_spider.utils import DEFAULT_STOP_WORDS, tokenize_for_bm25
 
 ALLOWED_TYPES = {
     "interview",
@@ -82,7 +82,7 @@ def _is_safe_title(title: str) -> bool:
 
 
 def gather_neighbors(store, provider, inp: EnrichInput, per_query: int = 5, keep: int = 10):
-    from vault_rag.retrieval.searcher import Searcher
+    from vault_spider.retrieval.searcher import Searcher
 
     searcher = Searcher(store, granularity="document", provider=provider)
     stemmer = PorterStemmer()

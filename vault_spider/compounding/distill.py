@@ -10,8 +10,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-from vault_rag.compounding.backfill_core import fresh_identity
-from vault_rag.utils import validate_vault_relative_path
+from vault_spider.compounding.backfill_core import fresh_identity
+from vault_spider.utils import validate_vault_relative_path
 
 
 class EmptySlugError(ValueError):

@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from vault_rag.envelope import CliError
+from vault_spider.envelope import CliError
 
 
 def registry_path() -> Path:

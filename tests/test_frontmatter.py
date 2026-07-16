@@ -1,10 +1,10 @@
-"""Tests for vault_rag.corpus.frontmatter (parsing + normalization)."""
+"""Tests for vault_spider.corpus.frontmatter (parsing + normalization)."""
 
 from __future__ import annotations
 
 import datetime as dt
 
-from vault_rag.corpus.frontmatter import (
+from vault_spider.corpus.frontmatter import (
     coerce_datetime,
     normalize_tags,
     split_frontmatter,

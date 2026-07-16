@@ -1,4 +1,4 @@
-"""JSON envelope helpers (bearctl pattern) for the vault-rag CLI."""
+"""JSON envelope helpers (bearctl pattern) for the vault-spider CLI."""
 
 from __future__ import annotations
 
