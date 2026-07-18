@@ -188,6 +188,25 @@ class TestCreateNote:
         assert fields["created"] == fields["updated"]
         assert datetime.fromisoformat(fields["created"]).tzinfo is not None
 
+    def test_auto_id_uses_obsidian_native_datetimes(
+        self, capsys, monkeypatch, isolated_config
+    ):
+        write_config(isolated_config, "timestamps:\n  policy: obsidian_local\n")
+        backend = FakeBackend()
+
+        _, env = run(
+            ["create-note", "--path", "A.md", "--content", "body", "--auto-id", "--dry-run"],
+            backend,
+            capsys,
+            monkeypatch,
+        )
+        fields = dict(
+            re.findall(r"^(created|updated): (.+)$", env["result"]["text"], re.MULTILINE)
+        )
+
+        assert fields["created"] == fields["updated"]
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", fields["created"])
+
     def test_auto_id_never_overwrites_explicit_frontmatter(self, capsys, monkeypatch):
         backend = FakeBackend()
         code, env = run(["create-note", "--path", "A.md", "--content", "body", "--auto-id",

@@ -41,10 +41,11 @@ index:
 
 timestamps:
   # How `--fix`/`--fix-timestamps`/distilled notes write `created`/`updated`:
-  #   offset_local — 2026-07-13T14:30:00+02:00  (local wall-clock + offset; what
-  #                  Obsidian and Templater write, and what most vaults already use)
-  #   utc_z        — 2026-07-13T12:30:00Z
-  # A naive timestamp already in a note is read as local wall-clock time either way.
+  #   offset_local  — 2026-07-13T14:30:00+02:00 (local wall-clock + offset)
+  #   utc_z         — 2026-07-13T12:30:00Z
+  #   obsidian_local — 2026-07-13T14:30:00 (Obsidian-native Date & time value;
+  #                    no offset, rendered using the OS locale in Obsidian)
+  # A timestamp without an offset is interpreted as local wall-clock time.
   policy: offset_local
 
 obsidian:

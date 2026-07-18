@@ -13,9 +13,9 @@ plugin then maintains `updated` on every subsequent edit, so the CLI leaves `upd
 
 Contract fields `--auto-id` mints:
 - `id` — a 26-char ULID (Crockford base32), immutable.
-- `created` / `updated` — the same "now", ISO 8601, **offset-aware**. The format follows
-  `config.yaml` `timestamps.policy`: `offset_local` (default, e.g. `2026-07-07T14:30:00+02:00`)
-  or `utc_z`.
+- `created` / `updated` — the same "now", formatted by `config.yaml` `timestamps.policy`:
+  `offset_local` (default, e.g. `2026-07-07T14:30:00+02:00`), `utc_z`, or
+  `obsidian_local` (e.g. `2026-07-07T14:30:00`, for native localized Date & time properties).
 
 Values set explicitly in `--frontmatter` always win; `--auto-id` fills only the missing ones.
 

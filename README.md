@@ -201,7 +201,7 @@ Read-only by default. It reports what you'd actually act on:
 | `conflict_copies` | `Note 1.md` sitting beside `Note.md` (Obsidian sync artifacts) |
 | `broken_wikilinks` | every unresolved link occurrence |
 | `duplicate_ids`, `duplicate_titles` | identity collisions |
-| `invalid_timestamps` | naive or unparseable `created`/`updated`/`date` |
+| `invalid_timestamps` | unparseable timestamps or values that do not match `timestamps.policy` |
 | `orphans` | notes with no links in or out |
 | `stale_distilled` | a distilled note whose sources changed after it was written |
 
@@ -212,8 +212,15 @@ Two opt-in fixers write to the vault:
 
 ```bash
 ./bin/vault-spider lint --fix              # add MISSING id/created/updated (never edits a value)
-./bin/vault-spider lint --fix-timestamps   # rewrite naive timestamps as offset-aware
+./bin/vault-spider lint --fix-timestamps   # normalize timestamps to timestamps.policy
 ```
+
+Timestamp policies are `offset_local` (`2026-07-17T17:32:10+02:00`), `utc_z`
+(`2026-07-17T15:32:10Z`), and `obsidian_local` (`2026-07-17T17:32:10`). Use
+`obsidian_local` when `created`/`updated` are Obsidian **Date & time** properties and localized,
+human-friendly rendering is preferred. It stores local wall time without an offset, matching
+Obsidian's native property format. Timestamp normalization preserves each note's filesystem
+modification time, so a formatting migration does not make the corpus appear newly edited.
 
 ## Compounding
 
@@ -234,6 +241,9 @@ timestamp policy, and the Obsidian connection facts for the mutation commands (`
 `obsidian.vault`, `obsidian.manage_updated`). The file is optional: root resolution is an explicit
 `--root`, then `vault.root`, then the active vault from Obsidian's registry; mutations similarly
 use an explicit `--vault`, then guarded config, then the active vault. Secrets stay in `.env`.
+
+For the required Obsidian desktop/CLI settings, the timestamp plugin's exact configuration, and an
+idempotent installer, see [docs/obsidian-setup.md](docs/obsidian-setup.md).
 
 Notes carrying `#secret` or `#ignore` (in the body or in frontmatter `tags:`) are **never indexed** —
 they stay in Obsidian but never reach the vector store or an LLM. Excalidraw drawings are skipped

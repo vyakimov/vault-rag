@@ -28,6 +28,18 @@ def isolated_config(tmp_path: Path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolated_default_config(tmp_path: Path, monkeypatch, request):
+    """Keep tests that do not request a config fixture independent of the user's config."""
+    if "isolated_config" in request.fixturenames:
+        yield
+        return
+    monkeypatch.setenv("VAULT_SPIDER_CONFIG", str(tmp_path / "default-config.yaml"))
+    settings.reset()
+    yield
+    settings.reset()
+
+
+@pytest.fixture(autouse=True)
 def isolated_obsidian_registry(tmp_path: Path, monkeypatch):
     """Prevent a developer's real Obsidian registry from affecting tests."""
     path = tmp_path / "obsidian.json"

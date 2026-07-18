@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import difflib
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from vault_spider import settings
 from vault_spider.corpus.frontmatter import coerce_datetime, normalize_tags, split_frontmatter
 from vault_spider.corpus.loader import (
     EXCALIDRAW_SUFFIX,
@@ -122,16 +124,20 @@ def extract_wikilinks(body: str) -> List[Tuple[str, int]]:
 def _timestamp_problem(value: Any) -> Optional[str]:
     if coerce_datetime(value) is None:
         return "unparseable"
+    has_offset = False
     if isinstance(value, datetime):
-        return None if value.tzinfo else "naive"
-    if isinstance(value, date):
-        return "naive"
-    if isinstance(value, str):
+        has_offset = value.tzinfo is not None
+    elif isinstance(value, date):
+        has_offset = False
+    elif isinstance(value, str):
         stripped = value.strip()
-        if stripped.endswith("Z") or re.search(r"[+-]\d{2}:?\d{2}$", stripped):
-            return None
-        return "naive"
-    return None
+        has_offset = stripped.endswith("Z") or bool(
+            re.search(r"[+-]\d{2}:?\d{2}$", stripped)
+        )
+
+    if settings.timestamp_policy() == "obsidian_local":
+        return "offset_aware" if has_offset else None
+    return None if has_offset else "naive"
 
 
 def _note_recency(frontmatter: Dict[str, Any]) -> Optional[datetime]:
@@ -436,11 +442,12 @@ def _rewrite_frontmatter_field(raw: str, field_name: str, value: str) -> Optiona
 
 
 def fix_naive_timestamps(root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """Rewrite naive `created`/`updated`/`date` values as offset-aware timestamps.
+    """Normalize `created`/`updated`/`date` to the configured timestamp policy.
 
-    A naive frontmatter timestamp is local wall-clock time (that is how Obsidian writes
-    it), so the local offset is attached — with historical DST — rather than assuming UTC.
-    Unparseable values are never guessed at; they are skipped and reported.
+    For the aware policies this attaches an offset to naive local wall-clock values.
+    For ``obsidian_local`` it converts aware instants to local wall time and removes the
+    suffix so Obsidian can render them as native Date & time properties. Unparseable
+    values are never guessed at; they are skipped and reported.
     """
     from vault_spider.compounding.backfill_core import format_timestamp
 
@@ -450,6 +457,7 @@ def fix_naive_timestamps(root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str
 
     for path, rel in _iter_note_files(root_path):
         try:
+            original_stat = path.stat()
             raw = path.read_text(encoding="utf-8", errors="strict")
         except (UnicodeDecodeError, OSError):
             continue
@@ -470,11 +478,11 @@ def fix_naive_timestamps(root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str
             problem = _timestamp_problem(value)
             if problem is None:
                 continue
-            if problem != "naive":
+            if problem == "unparseable":
                 skipped.append({"path": rel, "field": field_name, "reason": problem})
                 continue
             resolved = coerce_datetime(value)
-            if resolved is None:  # defensive: "naive" implies it parsed
+            if resolved is None:  # defensive: policy mismatches imply it parsed
                 skipped.append({"path": rel, "field": field_name, "reason": "unparseable"})
                 continue
             new_value = format_timestamp(resolved)
@@ -489,6 +497,9 @@ def fix_naive_timestamps(root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str
 
         if changed:
             path.write_text(updated_raw, encoding="utf-8")
+            # Formatting-only timestamp migrations must not make a note look newly
+            # edited (or provoke a modified-date plugin to stamp the migration time).
+            os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
             fixed.append({"path": rel, "timestamps": changed})
 
     return fixed, skipped

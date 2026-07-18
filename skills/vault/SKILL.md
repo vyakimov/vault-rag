@@ -80,7 +80,8 @@ multi-step and have a fixed apply order and frontmatter policy: follow
 then lead with the ranked checks: `dangling_targets` (the best notes to write next, by how many
 notes want them) and `empty_notes` (the most valuable stubs to fill, by inbound links). Fixes are
 the user's decisions; the only built-in fixers are `lint --fix` (adds *missing* `id`/`created`/
-`updated`, never edits a value) and `lint --fix-timestamps` (naive → offset-aware) — both opt-in.
+`updated`, never edits a value) and `lint --fix-timestamps` (normalize to `timestamps.policy`) —
+both opt-in.
 
 **Sync hygiene** — sync is incremental and only re-embeds changed content, so it is cheap to run
 after any batch of captures or edits (remind the user, or run it if they agree). When unsure what

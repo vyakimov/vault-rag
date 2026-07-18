@@ -94,6 +94,10 @@ class TestOverrides:
         write_config(isolated_config, "timestamps:\n  policy: utc_z\n")
         assert settings.timestamp_policy() == "utc_z"
 
+    def test_obsidian_local_policy(self, isolated_config):
+        write_config(isolated_config, "timestamps:\n  policy: obsidian_local\n")
+        assert settings.timestamp_policy() == "obsidian_local"
+
 
 class TestErrors:
     def test_unknown_section_rejected(self, isolated_config):

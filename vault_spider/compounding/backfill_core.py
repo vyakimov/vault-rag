@@ -23,8 +23,14 @@ def format_timestamp(dt: datetime) -> str:
     """Render a timestamp per the configured policy (`timestamps.policy`)."""
     if dt.tzinfo is None:
         dt = dt.astimezone()
-    if settings.timestamp_policy() == "utc_z":
+    policy = settings.timestamp_policy()
+    if policy == "utc_z":
         return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if policy == "obsidian_local":
+        # Obsidian's native Date & time property syntax deliberately has no
+        # timezone suffix. Convert the instant to local wall time before
+        # dropping tzinfo so the displayed clock time remains correct.
+        return dt.astimezone().replace(tzinfo=None).isoformat(timespec="seconds")
     return dt.astimezone().isoformat(timespec="seconds")
 
 

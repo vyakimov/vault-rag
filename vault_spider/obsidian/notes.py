@@ -505,8 +505,8 @@ def cmd_merge_frontmatter(args: argparse.Namespace) -> Dict[str, Any]:
         _bump_updated_if_managed(args.path, changed, True, result)
         return success("merge-frontmatter", result, {"dry_run": True})
 
-    # Scalars go through property:set on purpose — it writes untyped values,
-    # which is what keeps offset-aware timestamps round-tripping verbatim.
+    # Scalars go through property:set on purpose — it preserves their configured
+    # string serialization instead of coercing timestamp styles in Python.
     for key, value in scalar_sets:
         backend.run(["property:set", f"path={args.path}", f"name={key}", f"value={value}"])
     # All list fields ride one eval: each processFrontMatter call is a full

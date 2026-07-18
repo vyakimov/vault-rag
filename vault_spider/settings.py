@@ -37,7 +37,7 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "chroma_path": "chroma_db",
     },
     "timestamps": {
-        "policy": "offset_local",  # or "utc_z"
+        "policy": "offset_local",  # or "utc_z" / "obsidian_local"
     },
     # Connection facts for the mutation backend (the official Obsidian CLI).
     # Facts only, no workflow policy: which binary, which vault, and whether
@@ -152,8 +152,9 @@ def obsidian_manage_updated() -> bool:
 
 def timestamp_policy() -> str:
     policy = str(_get("timestamps", "policy"))
-    if policy not in ("offset_local", "utc_z"):
+    if policy not in ("offset_local", "utc_z", "obsidian_local"):
         raise ConfigError(
-            f"timestamps.policy must be 'offset_local' or 'utc_z', got {policy!r}"
+            "timestamps.policy must be 'offset_local', 'utc_z', or "
+            f"'obsidian_local', got {policy!r}"
         )
     return policy

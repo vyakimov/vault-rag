@@ -55,8 +55,10 @@ FILTERS (retrieve & synthesize):
   `duplicate_titles`, `broken_wikilinks`, `dangling_targets` (aggregated, ranked by link count),
   `empty_notes` (ranked by inbound links), `conflict_copies` (`Note 1.md` beside `Note.md`),
   `orphans`, `stale_distilled`. `--fix` writes only *missing* `id`/`created`/`updated` (never
-  edits a value); `--fix-timestamps` rewrites *naive* timestamps as offset-aware. Timestamp
-  format follows `config.yaml` `timestamps.policy`.
+  edits a value); `--fix-timestamps` normalizes parseable values to `config.yaml`
+  `timestamps.policy`. `obsidian_local` produces native local Date & time values without an
+  offset; `offset_local` and `utc_z` remain available for offset-aware storage. Normalization
+  preserves each note's filesystem mtime.
 - `enrich` result = an enrichment plan (title, `frontmatter_patch`, `link_insertions`,
   `related_candidates`, `suggested_path`, `confidence`, `warnings`). **enrich never mutates** —
   apply its output with the mutation commands below.

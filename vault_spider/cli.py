@@ -140,7 +140,7 @@ def _schema() -> Dict[str, Any]:
                     "--root": "vault directory (default: config.yaml vault.root, else the active Obsidian vault)",
                     "--format": "json|text (default json)",
                     "--fix": "flag: write missing id/created/updated frontmatter",
-                    "--fix-timestamps": "flag: rewrite naive created/updated/date as offset-aware",
+                    "--fix-timestamps": "flag: normalize created/updated/date to timestamps.policy",
                 },
                 "result": "lint_report (+fixed/fix_skipped with --fix/--fix-timestamps)",
             },
@@ -267,7 +267,8 @@ def _schema() -> Dict[str, Any]:
         },
         "mutation_contract": {
             "immutable_fields": ["id", "created"],
-            "timestamps": "written untyped; format follows config.yaml `timestamps.policy`",
+            "timestamps": "written untyped; timestamps.policy is offset_local, utc_z, "
+                          "or Obsidian-native obsidian_local",
             "manage_updated": "if true (config.yaml `obsidian.manage_updated`), "
                               "content edits patch `updated` themselves",
             "empty_optional_fields": "patches writing '' / [] / null are refused",
@@ -923,7 +924,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_lint.add_argument(
         "--fix-timestamps",
         action="store_true",
-        help="Rewrite naive created/updated/date as offset-aware timestamps",
+        help="Normalize created/updated/date to timestamps.policy",
     )
 
     p_enrich = sub.add_parser(

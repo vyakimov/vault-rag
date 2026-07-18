@@ -5,7 +5,7 @@ touched, and provenance is recorded in an external JSON report. Dry-run is the
 default; writes happen only with --apply.
 
 The timestamp policy comes from config.yaml (`timestamps.policy`): `offset_local`
-(the default) or `utc_z`.
+(the default), `utc_z`, or Obsidian-native `obsidian_local`.
 """
 
 from __future__ import annotations

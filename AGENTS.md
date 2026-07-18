@@ -53,7 +53,7 @@ by the `granularity` metadata field.
     sources — raw notes always win on conflict. Run `vault-spider sync` afterward to index it.
 - `./bin/vault-spider lint --root <dir> [--format json|text] [--fix] [--fix-timestamps]`
   - Read-only corpus health report (no LLM or index needed): missing frontmatter fields,
-    invalid/naive timestamps, duplicate ids, duplicate titles, broken wikilinks, `dangling_targets`
+    invalid/policy-mismatched timestamps, duplicate ids, duplicate titles, broken wikilinks, `dangling_targets`
     (unresolved link targets ranked by how many notes want them — the best next notes to write),
     `empty_notes` (stubs, ranked by inbound links), `conflict_copies` (`Note 1.md` beside
     `Note.md`), orphans, stale distilled notes.
@@ -61,9 +61,11 @@ by the `granularity` metadata field.
     real edges, `aliases` resolve, and `[[diagram.png]]` resolves to an attachment rather than
     being reported broken.
   - `--fix` writes only *missing* `id`/`created`/`updated` frontmatter (never edits a value).
-    `--fix-timestamps` additionally rewrites *naive* `created`/`updated`/`date` as offset-aware —
-    a naive timestamp is local wall-clock time, so the local offset is attached with historical
-    DST; unparseable values are skipped, never guessed.
+    `--fix-timestamps` normalizes parseable `created`/`updated`/`date` values to
+    `timestamps.policy`; unparseable values are skipped, never guessed. `offset_local` and
+    `utc_z` are offset-aware. `obsidian_local` writes local `YYYY-MM-DDTHH:mm:ss` values so
+    Obsidian Date & time properties use the OS-localized renderer. Normalization preserves file
+    mtimes so the formatting-only migration does not trigger false recency.
 - `./bin/vault-spider enrich --root <dir> (--note <path> | --stdin) [--intent ...] [--source-type transcript|web|pdf|manual] [--source-url ...] [--title ...]`
   - App-agnostic **enrichment planner**: retrieves a note's neighborhood and proposes a title,
     frontmatter patch (`type`/`aliases`/`source_type`/`source_url` only), inline links, related
@@ -115,6 +117,10 @@ by the `granularity` metadata field.
     built-in application authentication. Mutation tools default to `dry_run: true`.
 - `uv run pytest`
   - Network-free test suite (uses a fake provider; no API key required).
+
+The complete Obsidian-side prerequisite and plugin contract is in
+`docs/obsidian-setup.md`; `scripts/setup_obsidian.py` can dry-run or apply it without replacing
+unrelated vault settings.
 
 All CLI output is a single JSON envelope on stdout: `{"ok": bool, "action", "result", "meta"}` on
 success, `{"ok": false, "action", "error": {"type", "message", "details"}}` on failure (exit 1).
@@ -202,7 +208,7 @@ The `vault_spider` package is layered:
 `tools/backfill.py` — standalone one-time migration that adds `id`/`created`/`updated`
 frontmatter to existing notes (dry-run by default; `--apply` to write; never touches bodies).
 `uv run tools/backfill.py --root <dir> [--apply] [--report <path>]`. The timestamp policy comes
-from `config.yaml` (`timestamps.policy`: `offset_local` or `utc_z`).
+from `config.yaml` (`timestamps.policy`: `offset_local`, `utc_z`, or `obsidian_local`).
 
 ## Paths & Persistence
 

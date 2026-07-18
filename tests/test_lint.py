@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
+from conftest import write_config
 
 from vault_spider import cli
 from vault_spider.compounding.backfill_core import ULID_RE
@@ -303,6 +305,38 @@ def test_cli_fix_timestamps_normalizes_naive_values(capsys, tmp_path):
     # Untouched keys and the body survive byte-for-byte.
     assert frontmatter["parents"] == "[[x]]"
     assert note.read_text(encoding="utf-8").endswith(body)
+
+
+def test_obsidian_local_policy_normalizes_aware_values(
+    capsys, tmp_path, isolated_config
+):
+    write_config(isolated_config, "timestamps:\n  policy: obsidian_local\n")
+    note = tmp_path / "note.md"
+    body = "Body remains unchanged.\n"
+    write(
+        note,
+        "---\n"
+        "id: 01H\n"
+        "created: 2026-07-17T15:32:10Z\n"
+        "updated: 2026-07-17T17:32:10+02:00\n"
+        f"---\n{body}",
+    )
+    original_mtime_ns = note.stat().st_mtime_ns
+
+    before = lint_vault(str(tmp_path))["findings"]["invalid_timestamps"]
+    assert {entry["problem"] for entry in before} == {"offset_aware"}
+
+    code = cli.main(["lint", "--root", str(tmp_path), "--fix-timestamps"])
+    envelope = json.loads(capsys.readouterr().out)
+    text = note.read_text(encoding="utf-8")
+
+    assert code == 0
+    assert envelope["result"]["summary"]["invalid_timestamps"] == 0
+    assert re.search(r"^created: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$", text, re.MULTILINE)
+    assert re.search(r"^updated: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$", text, re.MULTILINE)
+    assert "+02:00" not in text and not re.search(r"Z$", text, re.MULTILINE)
+    assert text.endswith(body)
+    assert note.stat().st_mtime_ns == original_mtime_ns
 
 
 def test_cli_fix_timestamps_skips_unparseable(capsys, tmp_path):
