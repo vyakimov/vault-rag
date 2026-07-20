@@ -1,117 +1,133 @@
 ---
 name: vault
 description: >-
-  Search, answer from, and maintain the user's Obsidian vault using the
-  vault-spider CLI (retrieval / synthesis / lint / enrich / safe note mutations).
-  Use when the user asks what they know or wrote about something, or wants
-  notes found, captured, enriched, filed, or vault health checked.
+  Search, answer from, capture into, and maintain the user's Obsidian vault
+  using the vault-spider CLI (hybrid retrieval, cited synthesis, lint,
+  enrichment, safe note mutations, provenance-aware trust). Use when the user
+  asks what they know or wrote about something, or wants notes found, saved,
+  enriched, filed, or vault health checked.
 ---
 
 # vault
 
-Thin orchestration over one JSON CLI (plus the official `obsidian` CLI for a few read-only
-extras). This file encodes **when to use which command** — it holds no ranking, YAML, or path
-logic (that lives in the CLI). Every command prints one JSON envelope; **check the `"ok"` field,
-never exit codes.**
+One JSON CLI over the user's Obsidian vault. This file is enough for ~80% of tasks; open a
+reference only when you hit its topic:
 
-## Tools & preconditions
+- [references/commands.md](references/commands.md) — every flag, result contract, and mutation
+  detail (edit-note guards, move/rename, frontmatter patch rules).
+- [references/capture-and-enrichment.md](references/capture-and-enrichment.md) — the fixed
+  capture → enrich → apply workflow.
+- [references/eval-and-server.md](references/eval-and-server.md) — the MCP server (if you'd
+  rather call tools than a CLI) and the golden-dataset eval commands.
 
-- **`vault-spider`** — invoke the stable wrapper at `<repo>/bin/vault-spider ...` (or
-  `./bin/vault-spider ...` from the repo); do not construct `uv run` calls directly. The wrapper
-  locates the project and preserves argv, JSON output, and exit status. Config comes from
-  `config.yaml` (vault root, skip dirs, distilled dir, Obsidian connection facts — see
-  `config.yaml.example`). Vault resolution is explicit flags, then config, then the active
-  Obsidian vault, so `--root` can be omitted everywhere.
-  - *Query commands* (`retrieve`, `synthesize`, `enrich`, `stats`, `sync`, `lint`) need `.env`
-    (OpenRouter) except `stats` and `lint`. `vault-spider stats` needs no API key — it is the cheap
-    "is the index alive?" check.
-  - *Mutation commands* (`create-note`, `read-note`, `edit-note`, `merge-frontmatter`, `add-links`,
-    `insert-related`, `move-note`, `rename-note`, `open-note`) **need the Obsidian app running**;
-    they go through the official Obsidian CLI so links update and plugins fire.
-- **`obsidian`** — the official CLI; read-only use here (`backlinks`, `unresolved`, `tags`).
-  Errors print `Error:` text with exit 0.
+## Ground rules
 
-`vault-spider schema` (version 2) describes every command, contract, and error type in one document;
-full flags are in [references/commands.md](references/commands.md).
+- Invoke the stable wrapper: `<repo>/bin/vault-spider ...` — never construct `uv run` calls.
+- Every command prints **one JSON envelope**: `{"ok": true, "action", "result", "meta"}` or
+  `{"ok": false, "action", "error": {"type", "message", "details"}}`. **Check `"ok"`, never exit
+  codes.** Quote `error.type: message` verbatim to the user; never paraphrase or work around
+  `ambiguous_target`, `config_mismatch`, or `contract_violation`.
+- Config (`config.yaml`) supplies the vault root and connection facts — omit `--root` unless the
+  user targets a different directory.
+- Query commands need `.env` (OpenRouter). Mutations need the **Obsidian app running**
+  (`error.type: obsidian_not_running` → ask the user to open Obsidian, don't retry).
+- `./bin/vault-spider stats` — cheap "is the index alive?" check; needs no API key.
+- `./bin/vault-spider schema` — machine-readable contract for everything (version 2).
 
-## Decision rules
+## Search and answer
 
-**Find notes vs. answer a question**
-- User wants to *find or open* notes → `vault-spider retrieve`; present the candidate list.
-- User asks a *question* → `vault-spider synthesize`; present the answer with citations.
+User wants to *find/open* notes → `retrieve`, present candidates as `title — path` plus the
+one-line `why`. User asks a *question* → `synthesize`, present the answer with `[[title]]`
+citations and any `warnings[]` verbatim.
 
-**Retrieval depth**
-- Proper nouns, note titles, "where did I write X" → `retrieve --mode fast --granularity document`.
-- Conceptual / multi-note, "what do I know about X" → `--mode thorough --granularity mixed`
-  (`mixed` = section pool capped at 3 sections per note; it never returns whole documents).
-- Escalate fast → thorough when fast results look off-topic (no title/keyword overlap).
+```bash
+# titles / proper nouns / "where did I write X"
+./bin/vault-spider retrieve --query "..." --mode fast --granularity document -n 10
 
-**Scoped queries → filters, not query stuffing** — when the user scopes by place, kind, tag, or
-time ("my journal notes from June", "notes tagged #recipe"), keep the query semantic and pass the
-scope as filters — they work on both `retrieve` and `synthesize`: `--folder` (prefix match),
-`--tag` (repeatable, all must match), `--type`, `--since`/`--until` (ISO dates, compared against
-`updated`/`date` — undated notes drop out), `--must-include` (repeatable, exact term required in
-the text). An empty scope fails with `not_found: No documents match the required filters` — retry
-without filters and tell the user the scope matched nothing.
+# conceptual / multi-note / "what do I know about X"  (escalate here when fast looks off-topic)
+./bin/vault-spider retrieve --query "..." --mode thorough --granularity mixed
 
-**Abstention** — if `synthesize` returns `abstained: true`, tell the user what's missing and offer
-a broader retrieve. Never pad an abstained answer. An answer that cites nothing is already treated
-as an abstention by the CLI.
+# question → cited answer (defaults: thorough/mixed)
+./bin/vault-spider synthesize --query "..."
+```
 
-**Warnings** — read `warnings[]` on every synthesis. Surface "N sentence(s) lack citations" to the
-user with the answer; treat it as a reason not to offer `--save`.
+**Scope with filters, never query-stuffing.** All filters work on both commands:
 
-**Missing notes are usually by design** — a note the user knows exists but never surfaces is most
-likely excluded on purpose: `#secret`/`#ignore` tags, a skipped folder (`vault.skip_dirs`), a
-hidden directory, or an Excalidraw drawing. Check `config.yaml` before suspecting the index. A
-recently created note just needs `vault-spider sync`.
+```
+--folder <prefix>      folder or any subfolder
+--tag <t>              repeatable; every tag must match
+--type <kind>          frontmatter type, exact (recipe, runbook, ...)
+--provenance human|reference|llm|distilled
+--since/--until <ISO>  compared against updated/date; undated notes drop out
+--must-include <term>  repeatable; exact term must appear
+```
 
-**Saving distilled notes** — offer `synthesize --save` only when the answer is confidence
-high/medium AND cites ≥2 notes AND has no uncited-sentence warnings AND the question is reusable
-(research-y, not operational). Ask first; never save silently. The CLI independently refuses to
-save abstained, low-confidence, or citation-less answers and never overwrites — on `saved: false`,
-relay its warning instead of retrying. After saving, remind that `vault-spider sync` indexes it.
+Empty scope → `not_found: No documents match the required filters`: retry unfiltered and say the
+scope matched nothing.
 
-**Capture & enrichment** — new material → capture into `Inbox/`, then offer enrichment. Both are
-multi-step and have a fixed apply order and frontmatter policy: follow
-[references/capture-and-enrichment.md](references/capture-and-enrichment.md).
+**Abstention**: `abstained: true` → report what's missing, offer a broader retrieve; never pad.
+**Warnings**: surface "N sentence(s) lack citations" with the answer; it disqualifies `--save`.
 
-**Maintenance** — "vault health / broken links / cleanup" → `vault-spider lint`; summarize counts,
-then lead with the ranked checks: `dangling_targets` (the best notes to write next, by how many
-notes want them) and `empty_notes` (the most valuable stubs to fill, by inbound links). Fixes are
-the user's decisions; the only built-in fixers are `lint --fix` (adds *missing* `id`/`created`/
-`updated`, never edits a value) and `lint --fix-timestamps` (normalize to `timestamps.policy`) —
-both opt-in.
+## Provenance — who authored a note's words
 
-**Sync hygiene** — sync is incremental and only re-embeds changed content, so it is cheap to run
-after any batch of captures or edits (remind the user, or run it if they agree). When unsure what
-changed, `sync --dry-run` previews adds/updates/deletes without touching the index.
+Every note carries `provenance`: `human` (typed by the user — most authoritative),
+`reference` (imported external content; include `source_url`), `llm` (imported LLM output,
+e.g. pasted chats), `distilled` (generated from the vault; regenerable pointer — raw notes win
+on conflict). Synthesis applies this trust ordering automatically.
+
+- Set it at **capture time** — it describes how the note entered the vault.
+- It is **immutable once set**; never include it in a frontmatter patch on an existing note.
+- An agent must never stamp its own output `human`.
+- Filter with `--provenance` when the user distinguishes "my notes" from clipped/pasted material.
+
+## Capture
+
+New material the user wants kept → create in `Inbox/`, then offer enrichment (full workflow:
+[references/capture-and-enrichment.md](references/capture-and-enrichment.md)).
+
+```bash
+./bin/vault-spider create-note --path "Inbox/<Name>.md" --content-file raw.txt \
+    --auto-id --frontmatter '{"provenance":"reference","source_url":"https://..."}'
+```
+
+`--auto-id` mints `id`/`created`/`updated` — never mint those by hand. Pick provenance by origin:
+scraped/clipped → `reference` (+ `source_url`); pasted LLM output → `llm`; the user's own words →
+`human`. After any capture batch: `./bin/vault-spider sync` (incremental, cheap; `--dry-run`
+previews).
 
 ## Mutations — hard rules
 
-- Every mutation (`create-note`, `edit-note`, `merge-frontmatter`, `add-links`, `insert-related`,
-  `move-note`, `rename-note`): run with `--dry-run` first, show the result, then apply on
-  confirmation.
-- For body changes, use `edit-note` with exact `old_text` → `new_text` operations; never rewrite
-  the vault file directly. Its dry run returns a rendered unified `result.diff` and
-  `result.expected_sha256`. Apply the identical edits with `--expected-sha256 <that value>`.
-  Never reuse a guard after `contract_violation`; read the note again and repeat the dry run.
-  If `old_text` repeats, set the intended 1-based `occurrence`. Use `merge-frontmatter` for
-  metadata — `edit-note` only touches frontmatter when `obsidian.manage_updated: true`, in which
-  case `result.diff` includes the exact `updated` value it proposes/writes.
-- If a mutation fails with `error.type: obsidian_not_running`, tell the user to open Obsidian;
-  do not retry blindly.
-- Never construct a frontmatter patch containing `id`, `created`, `updated`, or `tags`.
-- Create notes with `create-note --auto-id` so the CLI mints `id`/`created`/`updated`; never
-  mint those values by hand.
-- Move/rename only with explicit user approval of the exact destination.
-- Anything reported as `ambiguous_target`, `config_mismatch`, or `contract_violation` → surface
-  verbatim; do not work around it. `config_mismatch` means config and Obsidian disagree about the
-  vault in use, so tell the user to fix config.
+All mutations (`create-note`, `edit-note`, `merge-frontmatter`, `add-links`, `insert-related`,
+`move-note`, `rename-note`) go through the CLI, never direct file writes. Full contracts:
+[references/commands.md](references/commands.md).
 
-## Output conventions
+1. **Dry-run first, show the result, apply on confirmation.** Every mutating command takes
+   `--dry-run`.
+2. Body edits: `edit-note --edits '[{"old_text":"...","new_text":"..."}]' --dry-run` returns a
+   `diff` and `expected_sha256`; apply the same edits with `--expected-sha256 <value>`. After any
+   `contract_violation`, re-read and re-dry-run — never reuse a guard.
+3. Metadata edits: `merge-frontmatter --patch '{...}'`. Never patch `id`, `created`, `updated`,
+   `tags`, or an existing `provenance`.
+4. Adding links to existing prose is always allowed (any provenance): `add-links` wraps existing
+   anchor text only; `insert-related` appends to `## Related`. Rewriting prose is only ever done
+   at the user's explicit request, via `edit-note`.
+5. Move/rename only with explicit user approval of the exact destination.
 
-- Retrieval hits: one `title — path` line each with the one-line `why`.
-- Synthesis answers: render citations as `[[title]]` references the user can open; append any
-  `warnings[]` verbatim.
-- Errors: quote `error.type: message` from the envelope rather than paraphrasing.
+## Saving answers (distilled notes)
+
+Offer `synthesize --save` only when: confidence high/medium AND ≥2 cited notes AND no
+uncited-sentence warnings AND the question is reusable. Ask first. The CLI refuses bad saves
+itself (`saved: false` → relay its warning, don't retry) and stamps `provenance: distilled`.
+Remind: `sync` afterward indexes it.
+
+## Maintenance
+
+"Vault health / broken links / cleanup" → `./bin/vault-spider lint` (no API key). Lead with the
+ranked checks: `dangling_targets` (best next notes to write), `empty_notes` (stubs by inbound
+links), then counts. `imported_missing_source` lists reference/llm notes lacking `source_url`.
+Fixes are opt-in and the user's call: `lint --fix` (adds *missing* id/created/updated only),
+`lint --fix-timestamps` (normalizes to `timestamps.policy`).
+
+**A "missing" note is usually excluded by design**: `#secret`/`#ignore` tags, skipped folders,
+or an unsynced recent note (`sync` fixes the last one). Check `config.yaml` before blaming the
+index.
