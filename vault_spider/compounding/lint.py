@@ -40,6 +40,7 @@ class NoteInfo:
     frontmatter_text: str  # raw YAML block, for links declared in frontmatter
     body: str
     note_type: str
+    provenance: str = ""
     aliases: List[str] = field(default_factory=list)
     recency: Optional[datetime] = field(default=None)
 
@@ -245,6 +246,7 @@ def lint_vault(root: str) -> Dict[str, Any]:
             frontmatter_text=_frontmatter_text(raw),
             body=body,
             note_type=str(frontmatter.get("type") or ""),
+            provenance=str(frontmatter.get("provenance") or "").strip().lower(),
             aliases=_alias_list(frontmatter.get("aliases")),
             recency=_note_recency(frontmatter),
         )
@@ -264,6 +266,7 @@ def lint_vault(root: str) -> Dict[str, Any]:
         "conflict_copies": [],
         "orphans": [],
         "stale_distilled": [],
+        "imported_missing_source": [],
     }
 
     # missing_frontmatter_fields
@@ -379,18 +382,27 @@ def lint_vault(root: str) -> Dict[str, Any]:
                 "similarity": round(similarity, 3),
             }
         )
+    # imported_missing_source: reference/llm notes should carry source_url
+    for note in notes:
+        if note.provenance in ("reference", "llm") and not str(
+            note.frontmatter.get("source_url") or ""
+        ).strip():
+            findings["imported_missing_source"].append(
+                {"path": note.path, "provenance": note.provenance}
+            )
+
     findings["conflict_copies"].sort(key=lambda entry: -float(entry["similarity"]))
 
     # orphans (distilled notes excluded — their Sources always link out)
     for note in notes:
-        if note.note_type == "distilled":
+        if note.provenance == "distilled" or note.note_type == "distilled":
             continue
         if not outgoing[note.path] and not incoming[note.path]:
             findings["orphans"].append({"path": note.path})
 
     # stale_distilled
     for note in notes:
-        if note.note_type != "distilled":
+        if note.provenance != "distilled" and note.note_type != "distilled":
             continue
         stale_sources = []
         for target, _ in _sources_wikilinks(note.body):

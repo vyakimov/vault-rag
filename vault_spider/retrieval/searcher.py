@@ -146,6 +146,7 @@ class Searcher:
         folder: Optional[str] = None,
         tags: Optional[List[str]] = None,
         note_type: Optional[str] = None,
+        provenance: Optional[str] = None,
         since: Optional[str] = None,
         until: Optional[str] = None,
     ) -> RetrievalResult:
@@ -194,7 +195,7 @@ class Searcher:
             }
         since_date = self._parse_filter_date(since, "since")
         until_date = self._parse_filter_date(until, "until")
-        if any(value is not None for value in (folder, tags, note_type, since, until)):
+        if any(value is not None for value in (folder, tags, note_type, provenance, since, until)):
             requested_tags = {tag.lower() for tag in tags or []}
 
             def matches(metadata: Dict[str, object]) -> bool:
@@ -212,6 +213,8 @@ class Searcher:
                 if not requested_tags.issubset(note_tags):
                     return False
                 if note_type and str(metadata.get("note_type", "")).lower() != note_type.lower():
+                    return False
+                if provenance and str(metadata.get("provenance", "")).lower() != provenance.lower():
                     return False
                 if since_date is not None or until_date is not None:
                     raw = str(metadata.get("updated") or metadata.get("date") or "")
@@ -412,6 +415,7 @@ class Searcher:
                     "folder": folder,
                     "tags": tags,
                     "note_type": note_type,
+                    "provenance": provenance,
                     "since": since,
                     "until": until,
                     "must_include": must_include_terms,

@@ -32,9 +32,6 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "skip_dirs": [".trash", ".obsidian", "Templates"],
         "ignore_tags": ["ignore", "secret"],
         "distilled_dir": "Distilled",
-        # The known `source_type` vocabulary. Enrich accepts other slugs from the
-        # caller (with a warning) but drops LLM-proposed values outside this set.
-        "source_types": ["transcript", "web", "pdf", "manual", "llm"],
     },
     "index": {
         "chroma_path": "chroma_db",
@@ -134,13 +131,6 @@ def ignore_tags() -> List[str]:
 def distilled_dir() -> str:
     return str(_get("vault", "distilled_dir"))
 
-
-def source_types() -> List[str]:
-    return [
-        str(value).strip().lower()
-        for value in (_get("vault", "source_types") or [])
-        if str(value).strip()
-    ]
 
 
 def chroma_path() -> str:

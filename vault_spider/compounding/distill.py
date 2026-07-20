@@ -75,6 +75,7 @@ def render_distilled_note(synth_output: Dict[str, Any]) -> str:
         f"created: {identity['created']}",
         f"updated: {identity['updated']}",
         "type: distilled",
+        "provenance: distilled",
         "---",
         f"# {question}",
         "",

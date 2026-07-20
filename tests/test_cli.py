@@ -51,22 +51,6 @@ class TestSchema:
             assert isinstance(command["mutates_state"], bool), name
 
 
-class TestSourceTypeArgument:
-    def test_malformed_slug_fails_fast(self, capsys):
-        code, envelope = run(
-            capsys, ["enrich", "--stdin", "--source-type", "not a slug!"]
-        )
-        assert code == 1
-        assert envelope["error"]["type"] == "invalid_arguments"
-        assert "slug" in envelope["error"]["message"]
-
-    def test_value_is_normalized_to_lowercase(self):
-        args = cli.build_parser().parse_args(
-            ["enrich", "--stdin", "--source-type", "PDF"]
-        )
-        assert args.source_type == "pdf"
-
-
 class TestEnvelopeShape:
     def test_success_envelope_keys(self, capsys, tmp_path, tiny_vault, fake_provider, monkeypatch):
         monkeypatch.setattr(cli, "get_provider", lambda: fake_provider)

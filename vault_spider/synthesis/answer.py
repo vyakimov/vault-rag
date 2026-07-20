@@ -83,7 +83,11 @@ Use only the note excerpts provided in <CONTEXT>.
 Every factual claim must cite one or more note ids like [S0] or [S0, S1].
 If the notes do not contain enough information, say that clearly.
 If the notes do not contain enough information to answer, set "abstained": true and say what is missing.
-Some context notes may be marked type=distilled: these are machine-written summaries of other notes. Treat them as pointers, not primary evidence — when a distilled note conflicts with a raw note, trust the raw note.
+Some context notes carry a provenance attribute:
+- provenance=distilled: machine-written summaries of other notes in this vault. Treat them as pointers, not primary evidence — when one conflicts with any other note, trust the other note.
+- provenance=reference: content imported from an external source (a paper, webpage, or blog). It is evidence of what that source says, not necessarily the user's view.
+- provenance=llm: saved LLM output the user imported. Treat like an external source; verify surprising factual claims against other notes when possible.
+Notes without a provenance attribute are the user's own writing and are the most authoritative about the user's views, setup, and decisions.
 Return JSON with this exact shape:
 {
   "answer": "<text>",
@@ -115,7 +119,14 @@ def build_context(
     for candidate in retrieval_output.get("candidates", []):
         citation_key = f"S{len(index_map)}"
         final_score = float(candidate.get("scores", {}).get("final", 0.0))
-        type_attr = " type=distilled" if candidate.get("type") == "distilled" else ""
+        provenance = str(candidate.get("provenance") or "").lower()
+        if not provenance and candidate.get("type") == "distilled":
+            provenance = "distilled"  # pre-provenance notes: type carried the marker
+        type_attr = (
+            f" provenance={provenance}"
+            if provenance in ("distilled", "reference", "llm")
+            else ""
+        )
         context_parts.append(
             "\n".join(
                 [

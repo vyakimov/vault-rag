@@ -24,10 +24,10 @@ tell the user to fix config.
                            [--n-context 8] [--save [--root <dir>] [--save-dir Distilled]] [FILTERS]
 ./bin/vault-spider lint [--root <dir>] [--format json|text] [--fix] [--fix-timestamps]
 ./bin/vault-spider enrich (--note <vault-rel-path> | --stdin) [--root <dir>]
-                       [--intent "..."] [--source-type <slug>] [--source-url ...] [--title ...]
+                       [--intent "..."] [--source-url ...] [--title ...]
 
 FILTERS (retrieve & synthesize):
-  [--folder <prefix>] [--tag <t>]... [--type <note_type>] [--since <ISO>] [--until <ISO>]
+  [--folder <prefix>] [--tag <t>]... [--type <note_type>] [--provenance human|reference|llm|distilled] [--since <ISO>] [--until <ISO>]
   [--must-include <term>]...
 ```
 
@@ -35,6 +35,7 @@ FILTERS (retrieve & synthesize):
   searches the section pool with a 3-sections-per-note cap; it does not mix in document entries.
 - Filter semantics: `--folder` matches the folder or any subfolder; `--tag` is repeatable and
   every given tag must be present (case-insensitive); `--type` matches frontmatter `type` exactly;
+  `--provenance` matches frontmatter `provenance` exactly (human|reference|llm|distilled);
   `--since`/`--until` compare against `updated` (falling back to `date`) — entries without either
   are excluded; `--must-include` is repeatable and each term must appear as a whole word
   (punctuation-insensitive). Filters that match nothing → `not_found`; a malformed date →
@@ -54,7 +55,8 @@ FILTERS (retrieve & synthesize):
 - `lint` checks: `missing_frontmatter_fields`, `invalid_timestamps`, `duplicate_ids`,
   `duplicate_titles`, `broken_wikilinks`, `dangling_targets` (aggregated, ranked by link count),
   `empty_notes` (ranked by inbound links), `conflict_copies` (`Note 1.md` beside `Note.md`),
-  `orphans`, `stale_distilled`. `--fix` writes only *missing* `id`/`created`/`updated` (never
+  `orphans`, `stale_distilled`, `imported_missing_source` (reference/llm notes without
+  `source_url`). `--fix` writes only *missing* `id`/`created`/`updated` (never
   edits a value); `--fix-timestamps` normalizes parseable values to `config.yaml`
   `timestamps.policy`. `obsidian_local` produces native local Date & time values without an
   offset; `offset_local` and `utc_z` remain available for offset-aware storage. Normalization
@@ -96,7 +98,7 @@ FILTERS (retrieve & synthesize):
   `obsidian.manage_updated`); `--binary`/`--vault` override per command. Explicit `--vault`
   rejects empty names, validates registered names when possible, and skips the root-agreement
   guard.
-- `id`/`created` are immutable once set (`contract_violation`); empty optional fields are
+- `id`/`created`/`provenance` are immutable once set (`contract_violation`); empty optional fields are
   refused; creates/moves/renames never overwrite (`already_exists`).
 - `move-note` needs the destination folder to already exist (enrich's `suggested_path` folders do).
 - Move/rename update incoming wikilinks automatically (the backend does it) and never bump

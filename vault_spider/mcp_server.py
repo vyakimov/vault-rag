@@ -53,9 +53,7 @@ NONDESTRUCTIVE_SIDE_EFFECT = ToolAnnotations(
 
 Mode = Literal["fast", "thorough"]
 Granularity = Literal["document", "section", "mixed"]
-# Free-form provenance slug (case-insensitive; the CLI lowercases). The known
-# vocabulary comes from config `vault.source_types`; unknown slugs warn.
-SourceType = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9-]{0,39}$")]
+Provenance = Literal["human", "reference", "llm", "distilled"]
 NoteView = Literal["full", "frontmatter", "body"]
 ResultLimit = Annotated[int, Field(ge=1, le=50)]
 ContextLimit = Annotated[int, Field(ge=1, le=25)]
@@ -124,6 +122,7 @@ def _add_filters(
     folder: Optional[str],
     tags: Optional[list[str]],
     note_type: Optional[str],
+    provenance: Optional[Provenance],
     since: Optional[str],
     until: Optional[str],
     must_include: Optional[list[str]],
@@ -132,6 +131,7 @@ def _add_filters(
     for tag in tags or []:
         arguments.extend(["--tag", tag])
     _add_optional(arguments, "--type", note_type)
+    _add_optional(arguments, "--provenance", provenance)
     _add_optional(arguments, "--since", since)
     _add_optional(arguments, "--until", until)
     for term in must_include or []:
@@ -166,6 +166,7 @@ def search_vault(
     folder: Optional[str] = None,
     tags: Optional[list[str]] = None,
     note_type: Optional[str] = None,
+    provenance: Optional[Provenance] = None,
     since: Optional[str] = None,
     until: Optional[str] = None,
     must_include: Optional[list[str]] = None,
@@ -187,6 +188,7 @@ def search_vault(
         folder=folder,
         tags=tags,
         note_type=note_type,
+        provenance=provenance,
         since=since,
         until=until,
         must_include=must_include,
@@ -203,6 +205,7 @@ def answer_from_vault(
     folder: Optional[str] = None,
     tags: Optional[list[str]] = None,
     note_type: Optional[str] = None,
+    provenance: Optional[Provenance] = None,
     since: Optional[str] = None,
     until: Optional[str] = None,
     must_include: Optional[list[str]] = None,
@@ -226,6 +229,7 @@ def answer_from_vault(
         folder=folder,
         tags=tags,
         note_type=note_type,
+        provenance=provenance,
         since=since,
         until=until,
         must_include=must_include,
@@ -244,7 +248,6 @@ def plan_enrichment(
     note: str,
     root: Optional[str] = None,
     intent: Optional[str] = None,
-    source_type: Optional[SourceType] = None,
     source_url: Optional[str] = None,
     title: Optional[str] = None,
 ) -> dict[str, Any]:
@@ -252,7 +255,6 @@ def plan_enrichment(
     arguments = ["enrich", "--note", note]
     _add_optional(arguments, "--root", root)
     _add_optional(arguments, "--intent", intent)
-    _add_optional(arguments, "--source-type", source_type)
     _add_optional(arguments, "--source-url", source_url)
     _add_optional(arguments, "--title", title)
     return _run_cli(arguments)

@@ -166,6 +166,7 @@ class IndexStore:
             "created": note.created or "",
             "updated": note.updated or "",
             "note_type": note.note_type,
+            "provenance": note.provenance,
             "content_hash": note.content_hash,
             "source": "vault_markdown",
         }

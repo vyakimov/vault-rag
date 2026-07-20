@@ -2,7 +2,7 @@
 
 The backend does the heavy lifting; this module adds dry-run, no-op detection,
 collision safety, ambiguity rejection, idempotent link/alias merging, and
-data-contract enforcement (`id`/`created` are immutable once set).
+data-contract enforcement (`id`/`created`/`provenance` are immutable once set).
 
 Handlers take the parsed argparse namespace and return a full envelope, raising
 :class:`~vault_spider.envelope.CliError` for typed failures.
@@ -25,7 +25,7 @@ from vault_spider.envelope import CliError, success
 from vault_spider.obsidian import backend
 from vault_spider.utils import validate_vault_relative_path
 
-CONTRACT_IMMUTABLE = ("id", "created")
+CONTRACT_IMMUTABLE = ("id", "created", "provenance")
 _PATCH_EMPTY_REJECT = ("", [], None)
 
 

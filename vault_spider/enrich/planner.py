@@ -18,13 +18,11 @@ from typing import Any, Dict, List, Optional
 
 from nltk.stem import PorterStemmer
 
-from vault_spider import settings
 from vault_spider.synthesis.answer import parse_llm_json
 from vault_spider.utils import DEFAULT_STOP_WORDS, tokenize_for_bm25
 
 ALLOWED_TYPES = {
     "interview",
-    "reference",
     "research",
     "recipe",
     "journal",
@@ -33,35 +31,19 @@ ALLOWED_TYPES = {
     "project",
 }
 
-# Caller-supplied source_type values are free-form but must be slugs; the
-# configured vocabulary (`vault.source_types`) only decides warnings for them.
-# Model-proposed values are untrusted and restricted to the vocabulary.
-SOURCE_TYPE_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 
-
-def known_source_types() -> set:
-    return set(settings.source_types())
-
-
-_SYSTEM_PROMPT_TEMPLATE = """You are an enrichment planner for a personal markdown knowledge vault.
+_SYSTEM_PROMPT = """You are an enrichment planner for a personal markdown knowledge vault.
 Given a NOTE and its retrieved NEIGHBORS, propose conservative improvements as JSON.
 Rules:
 - Propose only what the text clearly supports. When unsure, leave fields out and add a warning instead.
 - Only propose links to notes listed in NEIGHBORS.
-- type must be one of: interview, reference, research, recipe, journal, transcript, idea, project. Omit if unclear.
-- source_type must be one of: {source_types}. Omit if unclear.
+- type must be one of: interview, research, recipe, journal, transcript, idea, project. Omit if unclear.
 - aliases only when the note has an obvious alternate name. Never invent aliases.
 - Do not rewrite or summarize the note. You are proposing metadata, links, and a title only.
-Return JSON: {{"title": str, "type": str|null, "aliases": [str], "source_type": str|null,
- "inline_links": [{{"target": str, "anchor_text": str, "confidence": 0.0-1.0}}],
- "related": [{{"target": str, "confidence": 0.0-1.0, "reason": str}}],
- "warnings": [str]}}"""
-
-
-def _system_prompt() -> str:
-    return _SYSTEM_PROMPT_TEMPLATE.format(
-        source_types=", ".join(sorted(known_source_types()))
-    )
+Return JSON: {"title": str, "type": str|null, "aliases": [str],
+ "inline_links": [{"target": str, "anchor_text": str, "confidence": 0.0-1.0}],
+ "related": [{"target": str, "confidence": 0.0-1.0, "reason": str}],
+ "warnings": [str]}"""
 
 
 @dataclass
@@ -72,7 +54,6 @@ class EnrichInput:
     existing_frontmatter: Dict[str, Any]
     given_title: Optional[str]
     intent: Optional[str]
-    source_type: Optional[str]
     source_url: Optional[str]
 
 
@@ -160,10 +141,10 @@ def build_prompts(inp: EnrichInput, neighbors: List[Dict[str, Any]]):
     )
     user_prompt = (
         f"NOTE:\n{note_block}\n\n"
-        f"CONTEXT:\nintent={inp.intent or ''}, source_type={inp.source_type or ''}\n\n"
+        f"CONTEXT:\nintent={inp.intent or ''}\n\n"
         f"NEIGHBORS:\n{neighbor_lines}"
     )
-    return _system_prompt(), user_prompt
+    return _SYSTEM_PROMPT, user_prompt
 
 
 class _NeighborIndex:
@@ -227,7 +208,6 @@ def postprocess(
         "path": inp.path,
         "given_title": inp.given_title,
         "intent": inp.intent,
-        "source_type": inp.source_type,
     }
 
     # The LLM is not trusted: a non-object payload (e.g. a top-level array) is
@@ -355,27 +335,6 @@ def postprocess(
     if aliases:
         patch["aliases"] = aliases
 
-    known = known_source_types()
-    if inp.source_type:
-        # Caller-supplied provenance is authoritative: any well-formed slug is
-        # accepted; values outside the configured vocabulary only warn.
-        slug = str(inp.source_type).strip().lower()
-        if SOURCE_TYPE_SLUG_RE.match(slug):
-            patch["source_type"] = slug
-            if slug not in known:
-                warnings.append(
-                    f"unrecognized source_type={slug} "
-                    f"(known: {', '.join(sorted(known))})"
-                )
-        else:
-            warnings.append(f"dropped malformed source_type={slug}")
-    elif parsed.get("source_type"):
-        # Model-proposed provenance is untrusted: vocabulary members only.
-        proposed_source = str(parsed.get("source_type")).strip().lower()
-        if proposed_source in known:
-            patch["source_type"] = proposed_source
-        else:
-            warnings.append(f"dropped invalid source_type={proposed_source}")
     if inp.source_url:
         patch["source_url"] = inp.source_url
 

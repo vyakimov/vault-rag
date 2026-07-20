@@ -23,17 +23,19 @@ Values set explicitly in `--frontmatter` always win; `--auto-id` fills only the 
 
 ```bash
 ./bin/vault-spider create-note --path "Inbox/<name>.md" --content-file raw.txt \
-    --auto-id --frontmatter '{"source_type":"..."}'
+    --auto-id --frontmatter '{"provenance":"...", "source_url":"..."}'
 ```
 
-Set `source_type` if known at capture; leave `type` out (let enrich propose it). After capture,
-offer enrichment.
+Set `provenance` at capture — it records who authored the words and is immutable afterwards:
+`human` (typed by the owner), `reference` (imported external content; include `source_url`),
+`llm` (imported LLM output, e.g. a pasted chat). Leave `type` out (let enrich propose it).
+After capture, offer enrichment.
 
 ## Enrich → apply (fixed order)
 
 1. **Plan** (read-only, no mutations; `--root` comes from `config.yaml` unless overridden):
    ```bash
-   ./bin/vault-spider enrich --note "Inbox/<name>.md" --intent "..." --source-type "..." > plan.json
+   ./bin/vault-spider enrich --note "Inbox/<name>.md" --intent "..." > plan.json
    ```
    Show the user the plan summary: title, `frontmatter_patch`, links, `suggested_path`, confidence.
    If `confidence: low`, show the warnings and apply **nothing** unless the user insists.

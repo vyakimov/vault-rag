@@ -35,16 +35,6 @@ vault:
   # Where `synthesize --save` writes distilled notes, relative to the vault root.
   distilled_dir: Distilled
 
-  # The known `source_type` vocabulary for `enrich`. Caller-supplied slugs outside
-  # this list are still accepted (with a warning in the plan); LLM-proposed values
-  # outside it are dropped. Values are lowercase slugs (letters/digits/dashes).
-  source_types:
-    - transcript
-    - web
-    - pdf
-    - manual
-    - llm
-
 index:
   # ChromaDB persistence directory, relative to this config file (or an absolute path).
   chroma_path: chroma_db

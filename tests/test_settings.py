@@ -31,10 +31,6 @@ class TestDefaults:
         assert "999 Templates" not in settings.DEFAULTS["vault"]["skip_dirs"]
 
 
-    def test_source_types_default_includes_llm(self):
-        assert settings.source_types() == ["transcript", "web", "pdf", "manual", "llm"]
-
-
 class TestOverrides:
     def test_partial_config_overlays_defaults(self, isolated_config):
         write_config(isolated_config, "vault:\n  distilled_dir: Derived\n")

@@ -24,6 +24,15 @@ One note is indexed as **one `document`-granularity entry plus N `section` entri
 splitting is deterministic, heading-based). Both live in a single Chroma collection, distinguished
 by the `granularity` metadata field.
 
+Notes carry a **`provenance`** frontmatter field recording who authored their words:
+`human` (typed by the vault owner), `reference` (imported external human-authored content —
+papers, webpages, blog posts), `llm` (imported LLM output, e.g. pasted chats), or `distilled`
+(generated from the vault by `synthesize --save`; regenerable). Provenance is set at creation
+by the capture flow, immutable once set, never proposed by enrichment, and is orthogonal to
+`type` (which classifies *kind*: recipe, runbook, ...). Synthesis trusts `human` notes over
+imported ones and treats `distilled` notes as pointers; retrieval filters on it
+(`--provenance`); `tools/backfill_provenance.py` stamps existing vaults (dry-run by default).
+
 ## Key Commands
 
 - `./bin/vault-spider` is the stable executable wrapper for the CLI. It locates this project and
@@ -39,7 +48,7 @@ by the `granularity` metadata field.
     computed and validated, so a provider failure mid-sync leaves the existing index usable.
   - `--reset` rebuilds the collection from scratch (needed once after an entry-shape change).
 - `./bin/vault-spider stats` — index statistics (no API key needed).
-- `./bin/vault-spider retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10]`
+- `./bin/vault-spider retrieve --query "..." [--mode fast|thorough] [--granularity document|section|mixed] [-n 10] [--folder ...] [--tag ...] [--type ...] [--provenance human|reference|llm|distilled] [--since ...] [--until ...]`
   - Returns the retrieval output contract (candidates with score breakdown). Defaults: `fast`, `document`.
     `mixed` searches the section pool with a 3-sections-per-note cap (it does not mix in document entries).
   - `fast` skips reranking; `thorough` reranks the top candidates.
@@ -56,7 +65,8 @@ by the `granularity` metadata field.
     invalid/policy-mismatched timestamps, duplicate ids, duplicate titles, broken wikilinks, `dangling_targets`
     (unresolved link targets ranked by how many notes want them — the best next notes to write),
     `empty_notes` (stubs, ranked by inbound links), `conflict_copies` (`Note 1.md` beside
-    `Note.md`), orphans, stale distilled notes.
+    `Note.md`), orphans, stale distilled notes, and `imported_missing_source`
+    (`reference`/`llm`-provenance notes without a `source_url`).
   - Link resolution follows Obsidian: frontmatter links (`parents: "[[Daily Notes]]"`) count as
     real edges, `aliases` resolve, and `[[diagram.png]]` resolves to an attachment rather than
     being reported broken.
@@ -66,18 +76,15 @@ by the `granularity` metadata field.
     `utc_z` are offset-aware. `obsidian_local` writes local `YYYY-MM-DDTHH:mm:ss` values so
     Obsidian Date & time properties use the OS-localized renderer. Normalization preserves file
     mtimes so the formatting-only migration does not trigger false recency.
-- `./bin/vault-spider enrich --root <dir> (--note <path> | --stdin) [--intent ...] [--source-type <slug>] [--source-url ...] [--title ...]`
+- `./bin/vault-spider enrich --root <dir> (--note <path> | --stdin) [--intent ...] [--source-url ...] [--title ...]`
   - App-agnostic **enrichment planner**: retrieves a note's neighborhood and proposes a title,
-    frontmatter patch (`type`/`aliases`/`source_type`/`source_url` only), inline links, related
-    candidates, and placement — as JSON. It **never mutates** files or the index; apply a plan
-    with the mutation commands below. Only links to retrieved neighbors are proposed; the LLM
-    output is validated in code (confidence gating, anchor resolution, existing-type/link guards,
-    unsafe titles and non-numeric confidences dropped with warnings). `source_type` has split
-    trust: the caller's `--source-type` is a free-form lowercase slug (malformed values are
-    `invalid_arguments`; slugs outside the configured vocabulary are accepted with a warning),
-    while **LLM-proposed** values are dropped unless they are in the vocabulary. The vocabulary
-    is config `vault.source_types` (default `transcript|web|pdf|manual|llm`). `--note` must be a
-    vault-relative `.md` path resolving inside `--root`.
+    frontmatter patch (`type`/`aliases`/`source_url` only), inline links, related candidates,
+    and placement — as JSON. It **never mutates** files or the index; apply a plan with the
+    mutation commands below. Only links to retrieved neighbors are proposed; the LLM output is
+    validated in code (confidence gating, anchor resolution, existing-type/link guards, unsafe
+    titles and non-numeric confidences dropped with warnings). Enrich never proposes
+    `provenance` — that field is set by whichever flow creates the note, not inferred from
+    content. `--note` must be a vault-relative `.md` path resolving inside `--root`.
 - `./bin/vault-spider eval validate --dataset eval` / `./bin/vault-spider eval run --dataset eval [--stage retrieval|synthesis] [--mode thorough] [--granularity mixed] [-n 10] [--k 5] [--only <qid>] [--out results.json]`
   - Golden-dataset benchmark over the committed `eval/` corpus (see `eval/README.md`). `validate`
     cross-checks every label (paths, note ids, H1–H3 headings, group membership, expected counts)
@@ -110,7 +117,8 @@ by the `granularity` metadata field.
     formatted per `timestamps.policy`) for whichever of the three are missing from
     `--frontmatter`; explicit values always win. Templater does not fire on CLI-created notes,
     so prefer `--auto-id` over minting these fields by hand.
-  - Contract enforcement: `id`/`created` are immutable once set (`contract_violation`); empty
+  - Contract enforcement: `id`/`created`/`provenance` are immutable once set
+    (`contract_violation`); empty
     optional fields (`""`, `[]`, `null`) are refused; creates/moves/renames fail with
     `already_exists` rather than overwrite; `add-links`/`insert-related`/alias patches are
     idempotent. `updated` is left to the modified-date plugin unless

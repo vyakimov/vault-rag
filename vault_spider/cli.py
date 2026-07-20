@@ -113,7 +113,7 @@ def _schema() -> Dict[str, Any]:
                     "--mode": "fast|thorough (default fast)",
                     "--granularity": "document|section|mixed (mixed = section pool, max 3 sections per note; documents are not searched)",
                     "-n": "int (default 10)",
-                    "--folder/--tag/--type/--since/--until/--must-include": "metadata and required-term filters",
+                    "--folder/--tag/--type/--provenance/--since/--until/--must-include": "metadata and required-term filters (--provenance: human|reference|llm|distilled)",
                 },
                 "result": "retrieval_output",
             },
@@ -129,7 +129,7 @@ def _schema() -> Dict[str, Any]:
                     "--save": "flag: persist a good answer as a distilled note (root defaults to config.yaml vault.root, else the active Obsidian vault; live query only)",
                     "--save-dir": "distilled folder relative to --root (default Distilled)",
                     "--root": "vault directory (default: config.yaml vault.root, else the active Obsidian vault)",
-                    "--folder/--tag/--type/--since/--until/--must-include": "metadata and required-term filters",
+                    "--folder/--tag/--type/--provenance/--since/--until/--must-include": "metadata and required-term filters (--provenance: human|reference|llm|distilled)",
                 },
                 "result": "synthesis_output (with embedded retrieval; +saved/saved_path when --save)",
             },
@@ -151,11 +151,6 @@ def _schema() -> Dict[str, Any]:
                     "--note": "vault-relative path (xor --stdin)",
                     "--stdin": "flag: enrich raw text from stdin",
                     "--intent": "free text",
-                    "--source-type": "provenance slug (lowercase letters/digits/dashes). "
-                                     "Config `vault.source_types` names the known vocabulary "
-                                     "(default transcript|web|pdf|manual|llm); other slugs are "
-                                     "accepted with a warning. LLM-proposed values outside the "
-                                     "vocabulary are dropped.",
                     "--source-url": "url",
                     "--title": "known title override",
                 },
@@ -355,6 +350,7 @@ def _schema() -> Dict[str, Any]:
                     "conflict_copies": "int ('Note 1.md' beside 'Note.md')",
                     "orphans": "int",
                     "stale_distilled": "int",
+                    "imported_missing_source": "int (reference/llm notes without source_url)",
                 },
                 "findings": "object (per-check lists)",
             },
@@ -390,11 +386,11 @@ def _schema() -> Dict[str, Any]:
                             "abstention + judged facts with --stage synthesis)"],
             },
             "enrichment_plan": {
-                "input": {"path": "str|null", "given_title": "str|null", "intent": "str|null", "source_type": "str|null"},
+                "input": {"path": "str|null", "given_title": "str|null", "intent": "str|null"},
                 "title": "str",
                 "title_changed": "bool",
                 "suggested_path": "str",
-                "frontmatter_patch": "object (type/aliases/source_type/source_url only)",
+                "frontmatter_patch": "object (type/aliases/source_url only)",
                 "link_insertions": [
                     {"target": "str", "target_path": "str", "confidence": "float", "mode": "inline", "anchor_text": "str", "occurs_at_line": "int"}
                 ],
@@ -471,6 +467,7 @@ def _run_retrieval(store, provider, query, mode, granularity, n_results, args):
         folder=args.folder,
         tags=args.tags,
         note_type=args.note_type,
+        provenance=args.provenance,
         since=args.since,
         until=args.until,
         must_include_terms=args.must_include_terms,
@@ -731,7 +728,6 @@ def cmd_enrich(args: argparse.Namespace) -> Dict[str, Any]:
         existing_frontmatter=frontmatter,
         given_title=args.title,
         intent=args.intent,
-        source_type=args.source_type,
         source_url=args.source_url,
     )
     try:
@@ -767,6 +763,8 @@ def _lint_text(report: Dict[str, Any]) -> str:
             return f"{key}  -> {', '.join(entry['paths'])}"
         if check == "orphans":
             return str(entry["path"])
+        if check == "imported_missing_source":
+            return f"{entry['path']}  (provenance: {entry['provenance']}, no source_url)"
         if check == "stale_distilled":
             return f"{entry['path']}  {entry.get('warning', 'sources changed since it was written')}"
         return str(entry)
@@ -958,23 +956,13 @@ def _obsidian_handler(args: argparse.Namespace) -> Dict[str, Any]:
 
 # -- parser -------------------------------------------------------------------
 
-def _source_type_argument(value: str) -> str:
-    """Normalize --source-type to a lowercase slug; malformed values fail fast.
-
-    Vocabulary membership is not checked here — unknown-but-well-formed slugs
-    are accepted by the planner with a warning (config: `vault.source_types`)."""
-    slug = value.strip().lower()
-    if not re.match(r"^[a-z0-9][a-z0-9-]{0,39}$", slug):
-        raise argparse.ArgumentTypeError(
-            "must be a slug: letters/digits/dashes, max 40 chars"
-        )
-    return slug
-
-
 def _add_filter_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--folder", default=None)
     parser.add_argument("--tag", dest="tags", action="append", default=None)
     parser.add_argument("--type", dest="note_type", default=None)
+    parser.add_argument(
+        "--provenance", choices=["human", "reference", "llm", "distilled"], default=None
+    )
     parser.add_argument("--since", default=None)
     parser.add_argument("--until", default=None)
     parser.add_argument(
@@ -1119,11 +1107,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_enrich.add_argument("--note", default=None, help="Vault-relative path of an existing note")
     p_enrich.add_argument("--stdin", action="store_true", help="Enrich raw text read from stdin")
     p_enrich.add_argument("--intent", default=None)
-    p_enrich.add_argument(
-        "--source-type", dest="source_type",
-        type=_source_type_argument, default=None,
-        help="Provenance slug; config `vault.source_types` names the known set",
-    )
     p_enrich.add_argument("--source-url", dest="source_url", default=None)
     p_enrich.add_argument("--title", default=None, help="Known title override")
 

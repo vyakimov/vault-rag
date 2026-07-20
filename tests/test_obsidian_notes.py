@@ -485,6 +485,21 @@ class TestMergeFrontmatter:
                         backend, capsys, monkeypatch)
         assert code == 1 and env["error"]["type"] == "contract_violation"
 
+    def test_immutable_provenance_rejected(self, capsys, monkeypatch):
+        backend = FakeBackend({"n.md": "---\nprovenance: human\n---\nbody"})
+        code, env = run(["merge-frontmatter", "--path", "n.md", "--patch",
+                         json.dumps({"provenance": "llm"})],
+                        backend, capsys, monkeypatch)
+        assert code == 1 and env["error"]["type"] == "contract_violation"
+
+    def test_provenance_settable_when_absent(self, capsys, monkeypatch):
+        backend = FakeBackend({"n.md": "---\ntitle: T\n---\nbody"})
+        code, env = run(["merge-frontmatter", "--path", "n.md", "--patch",
+                         json.dumps({"provenance": "reference"})],
+                        backend, capsys, monkeypatch)
+        assert code == 0
+        assert "provenance" in env["result"]["fields_touched"]
+
     def test_empty_value_rejected(self, capsys, monkeypatch):
         backend = FakeBackend({"n.md": "---\ntitle: T\n---\nbody"})
         code, env = run(["merge-frontmatter", "--path", "n.md", "--patch", json.dumps({"type": ""})],

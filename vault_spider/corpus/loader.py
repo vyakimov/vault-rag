@@ -53,6 +53,7 @@ class Note:
     body: str            # body without frontmatter
     raw_text: str        # full original file text
     content_hash: str    # sha256 hexdigest of raw_text
+    provenance: str = "" # frontmatter `provenance` (human|reference|llm|distilled)
 
 
 def has_ignore_tag(body: str) -> bool:
@@ -140,6 +141,7 @@ def load_notes(root: str) -> List[Note]:
             updated=_iso_or_none(frontmatter.get("updated")),
             date=resolve_note_date(path, frontmatter),
             note_type=str(frontmatter.get("type") or ""),
+            provenance=str(frontmatter.get("provenance") or "").strip().lower(),
             body=body,
             raw_text=raw_text,
             content_hash=hashlib.sha256(raw_text.encode("utf-8")).hexdigest(),

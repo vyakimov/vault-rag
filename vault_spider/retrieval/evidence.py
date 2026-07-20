@@ -44,6 +44,7 @@ def build_evidence(result_row: Dict[str, object]) -> Dict[str, object]:
         "path": str(metadata.get("path", "")),
         "title": str(metadata.get("title", "")),
         "type": str(metadata.get("note_type", "")),
+        "provenance": str(metadata.get("provenance", "")),
         "heading": heading,
         "chunk_id": str(result_row["id"]),
         "line_start": int(metadata.get("line_start", 0) or 0),
