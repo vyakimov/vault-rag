@@ -152,12 +152,25 @@ def build_plan(
 
 def _validated_plist_bytes(plist: Dict[str, Any]) -> bytes:
     payload = plistlib.dumps(plist, fmt=plistlib.FMT_XML, sort_keys=True)
+
+    # `plutil` is the authoritative validator (it understands launchd-specific
+    # semantics), but it only exists on macOS. Off Darwin — notably Linux CI,
+    # which never installs this LaunchAgent — fall back to plistlib's own
+    # parser so the XML shape is still checked instead of skipping validation.
+    plutil = shutil.which("plutil")
+    if plutil is None:
+        try:
+            plistlib.loads(payload)
+        except plistlib.InvalidFileException as exc:
+            raise SetupError(f"generated plist is invalid: {exc}") from exc
+        return payload
+
     with tempfile.NamedTemporaryFile(suffix=".plist", delete=False) as handle:
         temporary = Path(handle.name)
         handle.write(payload)
     try:
         process = subprocess.run(
-            ["plutil", "-lint", str(temporary)],
+            [plutil, "-lint", str(temporary)],
             capture_output=True,
             text=True,
             check=False,

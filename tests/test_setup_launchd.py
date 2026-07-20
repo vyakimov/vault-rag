@@ -74,6 +74,38 @@ def test_generated_plist_passes_plutil(tmp_path):
     assert payload.startswith(b"<?xml")
 
 
+def test_validation_falls_back_to_plistlib_without_plutil(tmp_path, monkeypatch):
+    """plutil is macOS-only; Linux (e.g. CI) must still validate via plistlib."""
+    plist = setup_launchd.build_plist(
+        tmp_path / "repo", tmp_path / "bin" / "uv", tmp_path / "home", 60, False
+    )
+    monkeypatch.setattr(setup_launchd.shutil, "which", lambda name: None)
+
+    payload = setup_launchd._validated_plist_bytes(plist)
+
+    assert payload.startswith(b"<?xml")
+
+
+def test_fallback_validation_rejects_invalid_plist(tmp_path, monkeypatch):
+    plist = setup_launchd.build_plist(
+        tmp_path / "repo", tmp_path / "bin" / "uv", tmp_path / "home", 60, False
+    )
+    monkeypatch.setattr(setup_launchd.shutil, "which", lambda name: None)
+    monkeypatch.setattr(
+        setup_launchd.plistlib,
+        "loads",
+        lambda payload: (_ for _ in ()).throw(
+            setup_launchd.plistlib.InvalidFileException("bad")
+        ),
+    )
+
+    try:
+        setup_launchd._validated_plist_bytes(plist)
+        assert False, "expected SetupError"
+    except setup_launchd.SetupError as exc:
+        assert "generated plist is invalid" in str(exc)
+
+
 def test_apply_starts_once_via_bootstrap_without_kickstart(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     home = tmp_path / "home"
