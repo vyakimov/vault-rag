@@ -277,7 +277,7 @@ def _schema() -> Dict[str, Any]:
             },
         },
         "mutation_contract": {
-            "immutable_fields": ["id", "created"],
+            "immutable_fields": ["id", "created", "provenance"],
             "timestamps": "written untyped; timestamps.policy is offset_local, utc_z, "
                           "or Obsidian-native obsidian_local",
             "manage_updated": "if true (config.yaml `obsidian.manage_updated`), "
