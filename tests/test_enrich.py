@@ -4,8 +4,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+from types import SimpleNamespace
 
-from vault_spider.enrich.planner import EnrichInput, plan, postprocess
+from vault_spider.enrich.planner import (
+    NEIGHBOR_EXCERPT_CHARS,
+    EnrichInput,
+    _add_focused_section_excerpts,
+    build_prompts,
+    gather_neighbors,
+    plan,
+    postprocess,
+)
 from vault_spider.index.store import IndexStore
 
 
@@ -26,6 +35,107 @@ NEIGHBORS = [
     {"note_id": "n1", "title": "Atlas", "path": "Research/Atlas.md", "excerpt": "x", "score": 0.9},
     {"note_id": "n2", "title": "Beta", "path": "Research/Beta.md", "excerpt": "y", "score": 0.8},
 ]
+
+
+class TestNeighborhoodRetrieval:
+    def test_broad_search_disables_recency_and_records_channels(self, monkeypatch):
+        calls = []
+
+        def fake_search(_searcher, query, **kwargs):
+            calls.append((query, kwargs))
+            return SimpleNamespace(
+                rows=[
+                    {
+                        "note_id": "n1",
+                        "document": "document",
+                        "final": 0.8,
+                        "metadata": {"title": "Atlas", "path": "Atlas.md"},
+                    }
+                ]
+            )
+
+        monkeypatch.setattr(
+            "vault_spider.retrieval.searcher.Searcher.hybrid_search", fake_search
+        )
+
+        class Store:
+            def granularity_data(self, granularity):
+                assert granularity == "section"
+                return [], [], [], None
+
+        neighbors = gather_neighbors(Store(), object(), make_input())
+
+        assert len(calls) == 3
+        assert all(call[1]["n_results"] == 10 for call in calls)
+        assert all(call[1]["recency_boost_enabled"] is False for call in calls)
+        assert neighbors[0]["matched_by"] == ["title", "body", "terms"]
+
+    def test_uses_best_semantic_section_and_caps_excerpt(self):
+        long_section = "Best focused section " + ("x" * 1000)
+
+        class Collection:
+            def __init__(self):
+                self.query_args = None
+
+            def query(self, **kwargs):
+                self.query_args = kwargs
+                return {
+                    "documents": [[long_section, "Other section"]],
+                    "metadatas": [[
+                        {"note_id": "n1", "heading": "Relevant"},
+                        {"note_id": "n2", "heading": "Other"},
+                    ]],
+                }
+
+        class Store:
+            collection = Collection()
+
+            def granularity_data(self, granularity):
+                return [], [], [
+                    {"note_id": "n1"},
+                    {"note_id": "n1"},
+                    {"note_id": "n2"},
+                    {"note_id": "outside"},
+                ], None
+
+        class Provider:
+            def embed_texts(self, texts):
+                assert texts == ["Raw\nMeeting with Atlas about Beta today.\n"]
+                return [[0.1, 0.2]]
+
+        neighbors = [dict(NEIGHBORS[0]), dict(NEIGHBORS[1])]
+        result = _add_focused_section_excerpts(
+            Store(), Provider(), make_input(), neighbors
+        )
+
+        assert result[0]["excerpt"] == long_section[:NEIGHBOR_EXCERPT_CHARS]
+        assert result[0]["excerpt_heading"] == "Relevant"
+        assert Store.collection.query_args["n_results"] == 3
+        assert Store.collection.query_args["where"]["$and"][1] == {
+            "note_id": {"$in": ["n1", "n2"]}
+        }
+
+    def test_prompt_serializes_neighbor_content_as_json(self):
+        neighbors = [
+            {
+                **NEIGHBORS[0],
+                "title": 'Atlas "quoted"',
+                "excerpt": "first line\nsecond line",
+                "matched_by": ["title", "body"],
+                "excerpt_heading": "Details",
+            }
+        ]
+
+        _, user_prompt = build_prompts(make_input(), neighbors)
+
+        encoded_neighbor = user_prompt.split("NEIGHBORS:\n", 1)[1]
+        assert json.loads(encoded_neighbor) == {
+            "title": 'Atlas "quoted"',
+            "path": "Research/Atlas.md",
+            "matched_by": ["title", "body"],
+            "excerpt_heading": "Details",
+            "excerpt": "first line\nsecond line",
+        }
 
 
 class TestPostprocessSafety:
