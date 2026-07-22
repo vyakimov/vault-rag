@@ -12,7 +12,7 @@
     "json_envelope": "{ok: true, action, result, meta} | {ok: false, action, error}; always check `ok`, not just the exit code"
   },
   "generated": "2026-07-22",
-  "generator_note": "Structure extracted from the git-tracked source via Python ast; line numbers refer to the commit current on the generation date.",
+  "generator_note": "Regenerate with `uv run python tools/build_codebase_map.py`. Structure extracted from the git-tracked source via Python ast; line numbers refer to the commit current on the generation date.",
   "architecture": {
     "data_flow": {
       "read_path": [
@@ -2171,7 +2171,7 @@
       ]
     },
     "tools": {
-      "role": "One-off migration tools: backfill id/created/updated and backfill provenance frontmatter onto existing vaults (dry-run by default).",
+      "role": "Maintenance tools: frontmatter backfills for existing vaults (dry-run by default) and this codebase-map generator.",
       "modules": [
         {
           "path": "tools/backfill.py",
