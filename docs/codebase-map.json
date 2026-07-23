@@ -11,7 +11,7 @@
     "canonical_instructions": "AGENTS.md",
     "json_envelope": "{ok: true, action, result, meta} | {ok: false, action, error}; always check `ok`, not just the exit code"
   },
-  "generated": "2026-07-22",
+  "generated": "2026-07-23",
   "generator_note": "Regenerate with `uv run python tools/build_codebase_map.py`. Structure extracted from the git-tracked source via Python ast; line numbers refer to the commit current on the generation date.",
   "architecture": {
     "data_flow": {
@@ -2252,6 +2252,47 @@
           ],
           "constants": [
             "VALUES"
+          ]
+        },
+        {
+          "path": "tools/build_codebase_map.py",
+          "loc": 592,
+          "summary": "Generate docs/codebase-map.json and docs/codebase-map.html.",
+          "internal_deps": [],
+          "classes": [],
+          "functions": [
+            {
+              "name": "extract_modules",
+              "signature": "() -> list[dict]",
+              "doc": null,
+              "line": 64
+            },
+            {
+              "name": "build_json",
+              "signature": "(code_modules: list[dict], test_modules: list[dict]) -> dict",
+              "doc": null,
+              "line": 317
+            },
+            {
+              "name": "build_html",
+              "signature": "(codebase_map: dict) -> str",
+              "doc": null,
+              "line": 385
+            },
+            {
+              "name": "main",
+              "signature": "() -> None",
+              "doc": null,
+              "line": 575
+            }
+          ],
+          "constants": [
+            "ROOT",
+            "PACKAGES",
+            "DATA_FLOW",
+            "INVARIANTS",
+            "COMMANDS",
+            "OTHER_FILES"
           ]
         }
       ]

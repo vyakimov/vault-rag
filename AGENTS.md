@@ -262,3 +262,8 @@ All of these are configurable in `config.yaml`; the values below are the default
 - Retrieval/synthesis JSON contracts are stable; downstream tooling depends on them (see
   `vault-spider schema`).
 - The LLM relevance judge was removed; abstention now lives in synthesis.
+- `tools/build_codebase_map.py` generates `docs/codebase-map.{html,json}`; CI regenerates them
+  and fails when the committed maps are stale, so rerun it and commit the outputs after
+  structural changes. Its hand-maintained prose (package roles, data flows, invariants, command
+  table) is not extracted from code — update it in the script when the architecture or CLI
+  changes.

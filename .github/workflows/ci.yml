@@ -14,6 +14,20 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pytest -q
 
+  codebase-map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate codebase maps
+        run: python3 tools/build_codebase_map.py
+      - name: Fail if committed maps are stale (generation date ignored)
+        run: |
+          git diff --exit-code -I'^  "generated"' -I'^<footer>Generated ' \
+            -- docs/codebase-map.json docs/codebase-map.html || {
+            echo '::error::docs/codebase-map.* are stale. Run `uv run python tools/build_codebase_map.py` and commit the result.'
+            exit 1
+          }
+
   types:
     runs-on: ubuntu-latest
     continue-on-error: true
