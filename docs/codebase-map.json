@@ -36,6 +36,10 @@
         "scripts/streamlit_app.py (interactive UI)"
       ]
     },
+    "mermaid": {
+      "title": "Code and data flow",
+      "source": "flowchart LR\n    subgraph surfaces[\"Surfaces\"]\n        CLI[\"bin/vault-spider<br/>JSON CLI\"]\n        MCP[\"bin/vault-spider-mcp<br/>MCP server\"]\n        UI[\"Streamlit UI\"]\n    end\n\n    subgraph read[\"Read, index, and query\"]\n        Vault[(\"Obsidian vault<br/>Markdown notes\")]\n        Corpus[\"corpus<br/>load, normalize, identify, chunk\"]\n        Store[\"index.store<br/>sync + BM25\"]\n        Index[(\"ChromaDB<br/>document + section entries\")]\n        Search[\"retrieval.searcher<br/>hybrid search + fusion\"]\n        Evidence[\"retrieval.evidence<br/>ranked candidate contract\"]\n        Synthesis[\"synthesis.answer<br/>cited answer or abstention\"]\n        Distill[\"compounding.distill<br/>optional distilled note\"]\n        Lint[\"compounding.lint<br/>corpus health\"]\n        Enrich[\"enrich.planner<br/>proposed metadata + links\"]\n        Eval[\"evaluation<br/>validate + score\"]\n        OpenRouter[\"llm.openrouter<br/>embed, rerank, chat\"]\n    end\n\n    subgraph write[\"Mutation path\"]\n        Commands[\"cli mutation commands\"]\n        Notes[\"obsidian.notes<br/>contracts, dry-run, guarded edits\"]\n        Backend[\"obsidian.backend<br/>official CLI adapter\"]\n        Obsidian[\"Running Obsidian app<br/>link updates + plugins\"]\n    end\n\n    MCP -->|\"isolated CLI subprocess\"| CLI\n    UI --> Search\n    UI --> Synthesis\n    CLI -->|\"sync\"| Corpus\n    Vault -->|\"direct reads\"| Corpus\n    Corpus --> Store\n    Store -->|\"embeddings\"| OpenRouter\n    Store --> Index\n    CLI -->|\"retrieve\"| Search\n    Index --> Search\n    Search <-->|\"query embedding / optional rerank\"| OpenRouter\n    Search --> Evidence\n    CLI -->|\"synthesize\"| Synthesis\n    Evidence --> Synthesis\n    Synthesis <-->|\"chat\"| OpenRouter\n    Synthesis --> Distill\n    Distill -->|\"create-only save\"| Vault\n    CLI -->|\"lint\"| Lint\n    Vault --> Lint\n    Lint -->|\"--fix: missing metadata only\"| Vault\n    CLI -->|\"enrich\"| Enrich\n    Vault --> Enrich\n    Index --> Enrich\n    Enrich <-->|\"chat\"| OpenRouter\n    CLI -->|\"eval\"| Eval\n    Eval --> Search\n    Eval --> Synthesis\n    CLI -->|\"create/edit/move/rename/link\"| Commands\n    Commands --> Notes --> Backend --> Obsidian\n    Obsidian -->|\"mutation-command writes\"| Vault\n"
+    },
     "invariants": [
       "Every CLI command prints exactly one JSON envelope: {ok: true, action, result, meta} or {ok: false, action, error}; check `ok`, not just the exit code.",
       "Read path (sync, retrieve, lint) works on vault files directly; the write path goes only through the Obsidian CLI. Never write vault files directly from mutation code.",
@@ -2256,7 +2260,7 @@
         },
         {
           "path": "tools/build_codebase_map.py",
-          "loc": 592,
+          "loc": 690,
           "summary": "Generate docs/codebase-map.json and docs/codebase-map.html.",
           "internal_deps": [],
           "classes": [],
@@ -2271,25 +2275,26 @@
               "name": "build_json",
               "signature": "(code_modules: list[dict], test_modules: list[dict]) -> dict",
               "doc": null,
-              "line": 317
+              "line": 378
             },
             {
               "name": "build_html",
               "signature": "(codebase_map: dict) -> str",
               "doc": null,
-              "line": 385
+              "line": 453
             },
             {
               "name": "main",
               "signature": "() -> None",
               "doc": null,
-              "line": 575
+              "line": 673
             }
           ],
           "constants": [
             "ROOT",
             "PACKAGES",
             "DATA_FLOW",
+            "MERMAID_CODE_AND_DATA_FLOW",
             "INVARIANTS",
             "COMMANDS",
             "OTHER_FILES"

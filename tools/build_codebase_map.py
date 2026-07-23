@@ -236,6 +236,67 @@ DATA_FLOW = {
     ],
 }
 
+MERMAID_CODE_AND_DATA_FLOW = """flowchart LR
+    subgraph surfaces["Surfaces"]
+        CLI["bin/vault-spider<br/>JSON CLI"]
+        MCP["bin/vault-spider-mcp<br/>MCP server"]
+        UI["Streamlit UI"]
+    end
+
+    subgraph read["Read, index, and query"]
+        Vault[("Obsidian vault<br/>Markdown notes")]
+        Corpus["corpus<br/>load, normalize, identify, chunk"]
+        Store["index.store<br/>sync + BM25"]
+        Index[("ChromaDB<br/>document + section entries")]
+        Search["retrieval.searcher<br/>hybrid search + fusion"]
+        Evidence["retrieval.evidence<br/>ranked candidate contract"]
+        Synthesis["synthesis.answer<br/>cited answer or abstention"]
+        Distill["compounding.distill<br/>optional distilled note"]
+        Lint["compounding.lint<br/>corpus health"]
+        Enrich["enrich.planner<br/>proposed metadata + links"]
+        Eval["evaluation<br/>validate + score"]
+        OpenRouter["llm.openrouter<br/>embed, rerank, chat"]
+    end
+
+    subgraph write["Mutation path"]
+        Commands["cli mutation commands"]
+        Notes["obsidian.notes<br/>contracts, dry-run, guarded edits"]
+        Backend["obsidian.backend<br/>official CLI adapter"]
+        Obsidian["Running Obsidian app<br/>link updates + plugins"]
+    end
+
+    MCP -->|"isolated CLI subprocess"| CLI
+    UI --> Search
+    UI --> Synthesis
+    CLI -->|"sync"| Corpus
+    Vault -->|"direct reads"| Corpus
+    Corpus --> Store
+    Store -->|"embeddings"| OpenRouter
+    Store --> Index
+    CLI -->|"retrieve"| Search
+    Index --> Search
+    Search <-->|"query embedding / optional rerank"| OpenRouter
+    Search --> Evidence
+    CLI -->|"synthesize"| Synthesis
+    Evidence --> Synthesis
+    Synthesis <-->|"chat"| OpenRouter
+    Synthesis --> Distill
+    Distill -->|"create-only save"| Vault
+    CLI -->|"lint"| Lint
+    Vault --> Lint
+    Lint -->|"--fix: missing metadata only"| Vault
+    CLI -->|"enrich"| Enrich
+    Vault --> Enrich
+    Index --> Enrich
+    Enrich <-->|"chat"| OpenRouter
+    CLI -->|"eval"| Eval
+    Eval --> Search
+    Eval --> Synthesis
+    CLI -->|"create/edit/move/rename/link"| Commands
+    Commands --> Notes --> Backend --> Obsidian
+    Obsidian -->|"mutation-command writes"| Vault
+"""
+
 INVARIANTS = [
     "Every CLI command prints exactly one JSON envelope: {ok: true, action, result, meta} or "
     "{ok: false, action, error}; check `ok`, not just the exit code.",
@@ -371,7 +432,14 @@ def build_json(code_modules: list[dict], test_modules: list[dict]) -> dict:
         "generator_note": "Regenerate with `uv run python tools/build_codebase_map.py`. "
                           "Structure extracted from the git-tracked source via Python ast; "
                           "line numbers refer to the commit current on the generation date.",
-        "architecture": {"data_flow": DATA_FLOW, "invariants": INVARIANTS},
+        "architecture": {
+            "data_flow": DATA_FLOW,
+            "mermaid": {
+                "title": "Code and data flow",
+                "source": MERMAID_CODE_AND_DATA_FLOW,
+            },
+            "invariants": INVARIANTS,
+        },
         "commands": COMMANDS,
         "packages": packages_json,
         "tests": {"runner": "uv run pytest", "files": tests_json},
@@ -436,13 +504,16 @@ def build_html(codebase_map: dict) -> str:
         )
 
     flow_html = ""
+    data_flow = codebase_map["architecture"]["data_flow"]
     for title, key in [("Read path (query)", "read_path"),
                        ("Write path (mutation)", "write_path"),
                        ("Surfaces", "surfaces")]:
-        steps = "".join(f'<li>{e(s)}</li>' for s in DATA_FLOW[key])
+        steps = "".join(f'<li>{e(s)}</li>' for s in data_flow[key])
         flow_html += f'<div class="flow"><h3>{title}</h3><ol>{steps}</ol></div>'
 
-    inv_html = "".join(f"<li>{e(i)}</li>" for i in INVARIANTS)
+    mermaid = codebase_map["architecture"]["mermaid"]
+    mermaid_source = e(mermaid["source"])
+    inv_html = "".join(f"<li>{e(i)}</li>" for i in codebase_map["architecture"]["invariants"])
     cmd_rows = "".join(
         f'<tr><td><code>{e(c["command"])}</code></td><td>{e(c["summary"])}</td></tr>'
         for c in COMMANDS
@@ -495,6 +566,17 @@ code {{ font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .86em
 .flow ol {{ margin: 0; padding-left: 1.2rem; }}
 .flow li {{ margin: .3rem 0; font-size: .88rem; }}
 .flow li::marker {{ color: var(--accent); }}
+.diagram {{ background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  margin-top: 1rem; padding: 1rem; overflow-x: auto; }}
+.diagram h3 {{ margin-bottom: .75rem; }}
+.mermaid {{ min-width: 52rem; text-align: center; white-space: pre; }}
+.mermaid[data-processed="true"] {{ white-space: normal; }}
+.mermaid svg {{ max-width: none !important; height: auto; }}
+.mermaid-fallback {{ color: var(--muted); font-size: .8rem; margin: .5rem 0 0; }}
+.mermaid-source summary {{ margin-top: .75rem; }}
+.mermaid-source pre {{ background: var(--code-bg); border-radius: 6px; margin: .5rem 0 0;
+  overflow-x: auto; padding: .75rem; }}
+.mermaid-source code {{ background: none; padding: 0; }}
 .pkg-role {{ color: var(--muted); margin: .3rem 0 .9rem; font-size: .92rem; }}
 .cards {{ display: grid; gap: .8rem; }}
 .card {{ background: var(--card); border: 1px solid var(--line); border-radius: 10px;
@@ -539,6 +621,14 @@ Obsidian app. Canonical instructions: <code>AGENTS.md</code>.</p>
 
 <h2>Architecture</h2>
 <div class="flows">{flow_html}</div>
+<div class="diagram">
+  <h3>{e(mermaid["title"])}</h3>
+  <pre class="mermaid">{mermaid_source}</pre>
+  <p class="mermaid-fallback">The diagram renders when Mermaid can be loaded; its source
+  remains readable offline.</p>
+  <details class="mermaid-source"><summary>Mermaid source</summary>
+  <pre><code>{mermaid_source}</code></pre></details>
+</div>
 
 <h2>Invariants</h2>
 <ul class="invariants">{inv_html}</ul>
@@ -569,6 +659,14 @@ file's <code>vault_spider</code> imports.</p>
 source via Python <code>ast</code>. Companion machine-readable file:
 <code>docs/codebase-map.json</code>.</footer>
 </main>
+<script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+mermaid.initialize({{
+  startOnLoad: true,
+  securityLevel: "strict",
+  theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default"
+}});
+</script>
 """
 
 
